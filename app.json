@@ -1,0 +1,32 @@
+{
+  "name": "LockIN",
+  "slug": "lockin",
+  "orientation": "portrait",
+  "icon": "./assets/icon.png",
+  "splash": {
+    "image": "./assets/splash.png",
+    "resizeMode": "contain",
+    "backgroundColor": "#0B0F12"
+  },
+  "androidStatusBar": {
+    "barStyle": "light-content",
+    "backgroundColor": "#0B0F12"
+  },
+  "ios": { "supportsTablet": false },
+  "android": {
+    "adaptiveIcon": {
+      "foregroundImage": "./assets/icon.png",
+      "backgroundColor": "#0B0F12"
+    },
+    "permissions": ["NOTIFICATIONS"]
+  },
+  "plugins": [
+    [
+      "expo-notifications",
+      {
+        "icon": "./assets/icon.png",
+        "color": "#7C5CFC"
+      }
+    ]
+  ]
+}
