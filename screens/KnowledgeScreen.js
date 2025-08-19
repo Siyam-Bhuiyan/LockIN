@@ -350,6 +350,9 @@ function isValid(s) {
   };
 
   const getTopicProgress = (topic) => {
+    if (!topic || !topic.concepts || !Array.isArray(topic.concepts)) {
+      return 0;
+    }
     const totalConcepts = topic.concepts.length;
     const completedConcepts = topic.concepts.filter(
       (_, index) => userProgress[`${topic.id}-${index}`]
@@ -438,6 +441,10 @@ function isValid(s) {
   };
 
   const ConceptCard = ({ concept, topicId, index, topicColor }) => {
+    if (!concept) {
+      return null;
+    }
+
     const isCompleted = userProgress[`${topicId}-${index}`];
 
     return (
@@ -445,7 +452,7 @@ function isValid(s) {
         <View style={styles.conceptHeader}>
           <View style={styles.conceptTitleContainer}>
             <Text style={[styles.conceptTitle, { color: theme.text }]}>
-              {concept.title}
+              {concept.title || "Untitled Concept"}
             </Text>
             <Text
               style={[
@@ -453,7 +460,7 @@ function isValid(s) {
                 { color: theme.textSecondary },
               ]}
             >
-              {concept.description}
+              {concept.description || "No description available"}
             </Text>
           </View>
           <TouchableOpacity
@@ -478,12 +485,12 @@ function isValid(s) {
             <Text
               style={[styles.complexityLabel, { color: theme.textTertiary }]}
             >
-              Time: {concept.timeComplexity}
+              Time: {concept.timeComplexity || "N/A"}
             </Text>
             <Text
               style={[styles.complexityLabel, { color: theme.textTertiary }]}
             >
-              Space: {concept.spaceComplexity}
+              Space: {concept.spaceComplexity || "N/A"}
             </Text>
           </View>
         </View>
@@ -492,7 +499,7 @@ function isValid(s) {
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
             Key Points:
           </Text>
-          {concept.keyPoints.map((point, i) => (
+          {concept.keyPoints?.map((point, i) => (
             <View key={i} style={styles.keyPoint}>
               <View style={[styles.bullet, { backgroundColor: topicColor }]} />
               <Text
@@ -501,7 +508,7 @@ function isValid(s) {
                 {point}
               </Text>
             </View>
-          ))}
+          )) || []}
         </View>
 
         <View style={styles.codeContainer}>
@@ -514,7 +521,7 @@ function isValid(s) {
             showsHorizontalScrollIndicator={false}
           >
             <Text style={[styles.codeText, { color: theme.textSecondary }]}>
-              {concept.codeExample}
+              {concept.codeExample || "// No code example available"}
             </Text>
           </ScrollView>
         </View>
@@ -524,7 +531,7 @@ function isValid(s) {
             Related Problems:
           </Text>
           <View style={styles.problemsList}>
-            {concept.leetcodeProblems.map((problem, i) => (
+            {concept.leetcodeProblems?.map((problem, i) => (
               <View
                 key={i}
                 style={[
@@ -536,7 +543,7 @@ function isValid(s) {
                   {problem}
                 </Text>
               </View>
-            ))}
+            )) || []}
           </View>
         </View>
       </View>
@@ -570,7 +577,7 @@ function isValid(s) {
           style={styles.modalContent}
           showsVerticalScrollIndicator={false}
         >
-          {selectedTopic?.concepts.map((concept, index) => (
+          {selectedTopic?.concepts?.map((concept, index) => (
             <ConceptCard
               key={index}
               concept={concept}
@@ -578,7 +585,7 @@ function isValid(s) {
               index={index}
               topicColor={selectedTopic.color}
             />
-          ))}
+          )) || []}
         </ScrollView>
       </SafeAreaView>
     </Modal>

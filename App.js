@@ -19,6 +19,7 @@ import NeetCodeScreen from "./screens/NeetCodeScreen";
 import KnowledgeScreen from "./screens/KnowledgeScreen";
 import DailyChallengeScreen from "./screens/DailyChallengeScreen";
 import CheatSheetsScreen from "./screens/CheatSheetsScreen";
+import ProblemDetailScreen from "./screens/ProblemDetailScreen";
 
 // Keep the native splash visible until we explicitly hide it
 SplashScreenExpo.preventAutoHideAsync();
@@ -128,6 +129,7 @@ function AppNavigator() {
             component={DailyChallengeScreen}
           />
           <Stack.Screen name="CheatSheets" component={CheatSheetsScreen} />
+          <Stack.Screen name="ProblemDetail" component={ProblemDetailScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </>
