@@ -16,7 +16,6 @@ import LearningScreen from "./screens/LearningScreen";
 import RoadmapScreen from "./screens/RoadmapScreen";
 import CPTrackerScreen from "./screens/CPTrackerScreen";
 import NeetCodeScreen from "./screens/NeetCodeScreen";
-import KnowledgeScreen from "./screens/KnowledgeScreen";
 import DailyChallengeScreen from "./screens/DailyChallengeScreen";
 import CheatSheetsScreen from "./screens/CheatSheetsScreen";
 import ProblemDetailScreen from "./screens/ProblemDetailScreen";
@@ -123,7 +122,6 @@ function AppNavigator() {
         >
           <Stack.Screen name="MainTabs" component={TabNavigator} />
           <Stack.Screen name="NeetCode" component={NeetCodeScreen} />
-          <Stack.Screen name="Knowledge" component={KnowledgeScreen} />
           <Stack.Screen
             name="DailyChallenge"
             component={DailyChallengeScreen}

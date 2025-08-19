@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   StatusBar,
   RefreshControl,
   FlatList,
+  Animated,
+  PanResponder,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -43,44 +45,6 @@ const HomeScreen = ({ navigation }) => {
     hard: { solved: 0, total: 13 },
     lastSolved: null,
   });
-  const [knowledgeCards] = useState([
-    {
-      id: 1,
-      title: "Array & Hashing",
-      description: "Master fundamental data structures and hash tables",
-      progress: 0.7,
-      color: "#FF6B6B",
-      icon: "grid-outline",
-      totalProblems: 9,
-    },
-    {
-      id: 2,
-      title: "Two Pointers",
-      description: "Optimize your solutions with pointer techniques",
-      progress: 0.5,
-      color: "#4ECDC4",
-      icon: "arrow-back-outline",
-      totalProblems: 5,
-    },
-    {
-      id: 3,
-      title: "Sliding Window",
-      description: "Efficient substring and subarray problems",
-      progress: 0.3,
-      color: "#45B7D1",
-      icon: "expand-outline",
-      totalProblems: 6,
-    },
-    {
-      id: 4,
-      title: "Stack",
-      description: "LIFO data structure for various problems",
-      progress: 0.8,
-      color: "#96CEB4",
-      icon: "layers-outline",
-      totalProblems: 7,
-    },
-  ]);
   const [dailyChallenge] = useState({
     title: "Valid Parentheses",
     difficulty: "Easy",
@@ -334,68 +298,6 @@ const HomeScreen = ({ navigation }) => {
     );
   };
 
-  const KnowledgeCard = ({ item }) => (
-    <TouchableOpacity
-      style={[styles.knowledgeCardContainer, { width: width * 0.7 }]}
-      onPress={() => navigation.navigate("Knowledge", { topic: item.title })}
-      activeOpacity={0.8}
-    >
-      <LinearGradient
-        colors={[item.color + "08", item.color + "04"]}
-        style={[styles.knowledgeCard, { borderColor: item.color + "20" }]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.knowledgeHeader}>
-          <View
-            style={[
-              styles.knowledgeIcon,
-              { backgroundColor: item.color + "20" },
-            ]}
-          >
-            <Ionicons name={item.icon} size={24} color={item.color} />
-          </View>
-          <View style={styles.knowledgeInfo}>
-            <Text style={[styles.knowledgeTitle, { color: theme.text }]}>
-              {item.title}
-            </Text>
-            <Text
-              style={[
-                styles.knowledgeDescription,
-                { color: theme.textSecondary },
-              ]}
-            >
-              {item.description}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.knowledgeProgress}>
-          <View style={styles.knowledgeProgressInfo}>
-            <Text style={[styles.knowledgeProgressText, { color: item.color }]}>
-              {Math.round(item.progress * 100)}% Complete
-            </Text>
-            <Text
-              style={[
-                styles.knowledgeProblemsText,
-                { color: theme.textTertiary },
-              ]}
-            >
-              {item.totalProblems} problems
-            </Text>
-          </View>
-          <ProgressBar
-            progress={item.progress}
-            height={6}
-            color={item.color}
-            animated={true}
-            style={styles.knowledgeProgressBar}
-          />
-        </View>
-      </LinearGradient>
-    </TouchableOpacity>
-  );
-
   const DailyChallengeCard = () => {
     const getDifficultyColor = (difficulty) => {
       switch (difficulty.toLowerCase()) {
@@ -506,19 +408,67 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const CheatSheetPreview = () => {
-    const cheatSheets = [
-      {
-        title: "Array Methods",
-        code: "arr.filter(x => x > 5)",
-        color: "#FF6B6B",
-      },
-      {
-        title: "Binary Search",
-        code: "while (left <= right)",
-        color: "#4ECDC4",
-      },
-      { title: "DFS Template", code: "def dfs(node):", color: "#45B7D1" },
-    ];
+    const [cheatSheets, setCheatSheets] = useState([]);
+
+    useEffect(() => {
+      loadCheatSheets();
+    }, []);
+
+    const loadCheatSheets = async () => {
+      try {
+        const sheets = await StorageService.getCheatSheets();
+        setCheatSheets(sheets.slice(0, 4)); // Get first 4 cheat sheets
+      } catch (error) {
+        console.error("Error loading cheat sheets:", error);
+      }
+    };
+
+    const categoryColors = {
+      Algorithms: "#6366F1",
+      "Data Structures": "#8B5CF6",
+      Arrays: "#10B981",
+      Strings: "#F59E0B",
+      Trees: "#EF4444",
+      Graphs: "#06B6D4",
+      "Dynamic Programming": "#EC4899",
+      Sorting: "#84CC16",
+      Searching: "#F97316",
+      Math: "#3B82F6",
+      "Bit Manipulation": "#6B7280",
+      "Design Patterns": "#8B5CF6",
+      "System Design": "#059669",
+      Other: "#6B7280",
+    };
+
+    const getCategoryIcon = (category) => {
+      const icons = {
+        Algorithms: "calculator-outline",
+        "Data Structures": "layers-outline",
+        Arrays: "grid-outline",
+        Strings: "text-outline",
+        Trees: "git-network-outline",
+        Graphs: "share-outline",
+        "Dynamic Programming": "flash-outline",
+        Sorting: "swap-vertical-outline",
+        Searching: "search-outline",
+        Math: "calculator-outline",
+        "Bit Manipulation": "code-slash-outline",
+        "Design Patterns": "construct-outline",
+        "System Design": "server-outline",
+        Other: "code-outline",
+      };
+      return icons[category] || "code-outline";
+    };
+
+    const getFirstCodeSnippet = (codes) => {
+      if (!codes || codes.length === 0) return "No code snippets";
+      const firstCode = codes[0].code;
+      // Get first line of code, max 30 chars
+      const firstLine = firstCode.split("\n")[0];
+      return firstLine.length > 30
+        ? firstLine.substring(0, 27) + "..."
+        : firstLine;
+    };
 
     return (
       <TouchableOpacity
@@ -527,72 +477,159 @@ const HomeScreen = ({ navigation }) => {
         activeOpacity={0.8}
       >
         <LinearGradient
-          colors={[theme.secondary + "15", theme.secondary + "08"]}
-          style={styles.cheatSheetCard}
+          colors={[theme.secondary + "12", theme.secondary + "06"]}
+          style={[
+            styles.cheatSheetCard,
+            { borderColor: theme.secondary + "20" },
+          ]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
           <View style={styles.cheatSheetHeader}>
-            <Text style={[styles.cheatSheetTitle, { color: theme.text }]}>
-              Quick References
-            </Text>
-            <Text
+            <View style={styles.cheatSheetTitleContainer}>
+              <Text style={[styles.cheatSheetTitle, { color: theme.text }]}>
+                📚 Quick References
+              </Text>
+              <Text
+                style={[
+                  styles.cheatSheetSubtitle,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                Code snippets & boilerplates
+              </Text>
+            </View>
+            <View
               style={[
-                styles.cheatSheetSubtitle,
-                { color: theme.textSecondary },
+                styles.cheatSheetBadge,
+                { backgroundColor: theme.secondary + "15" },
               ]}
             >
-              Code snippets & algorithms
-            </Text>
+              <Ionicons name="code-slash" size={18} color={theme.secondary} />
+            </View>
           </View>
 
-          <View style={styles.cheatSheetPreviews}>
-            {cheatSheets.map((sheet, index) => (
-              <View key={index} style={styles.cheatSheetPreviewItem}>
-                <View
-                  style={[
-                    styles.cheatSheetIcon,
-                    { backgroundColor: sheet.color + "20" },
-                  ]}
-                >
-                  <Ionicons
-                    name="code-slash-outline"
-                    size={16}
-                    color={sheet.color}
-                  />
-                </View>
-                <View style={styles.cheatSheetContent}>
-                  <Text
-                    style={[styles.cheatSheetItemTitle, { color: theme.text }]}
+          {cheatSheets.length > 0 ? (
+            <View style={styles.cheatSheetGrid}>
+              {cheatSheets.map((sheet, index) => {
+                const categoryColor =
+                  categoryColors[sheet.category] || categoryColors["Other"];
+                return (
+                  <View
+                    key={sheet.id || index}
+                    style={styles.cheatSheetGridItem}
                   >
-                    {sheet.title}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.cheatSheetCode,
-                      { color: theme.textTertiary },
-                    ]}
-                  >
-                    {sheet.code}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </View>
+                    <LinearGradient
+                      colors={[`${categoryColor}15`, `${categoryColor}08`]}
+                      style={[
+                        styles.cheatSheetMiniCard,
+                        { borderColor: `${categoryColor}25` },
+                      ]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <View style={styles.cheatSheetMiniHeader}>
+                        <View
+                          style={[
+                            styles.cheatSheetMiniIcon,
+                            { backgroundColor: `${categoryColor}20` },
+                          ]}
+                        >
+                          <Ionicons
+                            name={getCategoryIcon(sheet.category)}
+                            size={12}
+                            color={categoryColor}
+                          />
+                        </View>
+                        <Text
+                          style={[
+                            styles.cheatSheetMiniTitle,
+                            { color: theme.text },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {sheet.title}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[
+                          styles.cheatSheetMiniPreview,
+                          { color: theme.textSecondary },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {getFirstCodeSnippet(sheet.codes)}
+                      </Text>
+                      <View style={styles.cheatSheetMiniFooter}>
+                        <Text
+                          style={[
+                            styles.cheatSheetMiniCategory,
+                            { color: categoryColor },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {sheet.category}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.cheatSheetMiniCount,
+                            { color: theme.textTertiary },
+                          ]}
+                        >
+                          {sheet.codes?.length || 0}
+                        </Text>
+                      </View>
+                    </LinearGradient>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={styles.cheatSheetEmptyState}>
+              <Ionicons
+                name="document-text-outline"
+                size={32}
+                color={theme.textSecondary}
+                style={{ marginBottom: 8 }}
+              />
+              <Text
+                style={[
+                  styles.cheatSheetEmptyText,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                No cheat sheets yet
+              </Text>
+              <Text
+                style={[
+                  styles.cheatSheetEmptySubtext,
+                  { color: theme.textTertiary },
+                ]}
+              >
+                Create your first code snippet
+              </Text>
+            </View>
+          )}
 
           <TouchableOpacity
             style={[
-              styles.viewAllButton,
-              { backgroundColor: theme.secondary + "20" },
+              styles.cheatSheetViewAllButton,
+              { backgroundColor: theme.secondary + "15" },
             ]}
             onPress={() => navigation.navigate("CheatSheets")}
           >
             <Text
-              style={[styles.viewAllButtonText, { color: theme.secondary }]}
+              style={[styles.cheatSheetViewAllText, { color: theme.secondary }]}
             >
-              View All Cheat Sheets
+              {cheatSheets.length > 0
+                ? "View All Cheat Sheets"
+                : "Create Cheat Sheet"}
             </Text>
-            <Ionicons name="arrow-forward" size={16} color={theme.secondary} />
+            <Ionicons
+              name={cheatSheets.length > 0 ? "arrow-forward" : "add"}
+              size={16}
+              color={theme.secondary}
+            />
           </TouchableOpacity>
         </LinearGradient>
       </TouchableOpacity>
@@ -866,71 +903,6 @@ const HomeScreen = ({ navigation }) => {
       fontWeight: "700",
       color: "white",
     },
-    // Knowledge Cards Styles
-    knowledgeCardsList: {
-      paddingHorizontal: 4,
-    },
-    knowledgeCardContainer: {
-      marginBottom: 4,
-    },
-    knowledgeCard: {
-      padding: 20,
-      borderRadius: 16,
-      borderWidth: 1,
-      backgroundColor: theme.surface,
-      shadowColor: theme.text,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.04,
-      shadowRadius: 12,
-      elevation: 3,
-      minHeight: 140,
-    },
-    knowledgeHeader: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      marginBottom: 16,
-    },
-    knowledgeIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 12,
-    },
-    knowledgeInfo: {
-      flex: 1,
-    },
-    knowledgeTitle: {
-      fontSize: 16,
-      fontWeight: "700",
-      marginBottom: 4,
-    },
-    knowledgeDescription: {
-      fontSize: 13,
-      fontWeight: "500",
-      lineHeight: 18,
-    },
-    knowledgeProgress: {
-      marginTop: "auto",
-    },
-    knowledgeProgressInfo: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 8,
-    },
-    knowledgeProgressText: {
-      fontSize: 14,
-      fontWeight: "700",
-    },
-    knowledgeProblemsText: {
-      fontSize: 12,
-      fontWeight: "600",
-    },
-    knowledgeProgressBar: {
-      borderRadius: 3,
-    },
     // Daily Challenge Styles
     dailyChallengeContainer: {
       marginBottom: 4,
@@ -1041,7 +1013,13 @@ const HomeScreen = ({ navigation }) => {
       elevation: 3,
     },
     cheatSheetHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
       marginBottom: 16,
+    },
+    cheatSheetTitleContainer: {
+      flex: 1,
     },
     cheatSheetTitle: {
       fontSize: 18,
@@ -1052,36 +1030,83 @@ const HomeScreen = ({ navigation }) => {
       fontSize: 14,
       fontWeight: "500",
     },
-    cheatSheetPreviews: {
-      marginBottom: 16,
-    },
-    cheatSheetPreviewItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 8,
-    },
-    cheatSheetIcon: {
+    cheatSheetBadge: {
       width: 32,
       height: 32,
       borderRadius: 16,
       alignItems: "center",
       justifyContent: "center",
-      marginRight: 12,
     },
-    cheatSheetContent: {
+    cheatSheetGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 12,
+      marginBottom: 16,
+    },
+    cheatSheetGridItem: {
+      width: (width - 88) / 2, // Account for padding and gap
+    },
+    cheatSheetMiniCard: {
+      padding: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      minHeight: 80,
+    },
+    cheatSheetMiniHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 8,
+    },
+    cheatSheetMiniIcon: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: 8,
+    },
+    cheatSheetMiniTitle: {
+      fontSize: 13,
+      fontWeight: "700",
       flex: 1,
     },
-    cheatSheetItemTitle: {
-      fontSize: 14,
-      fontWeight: "600",
-      marginBottom: 2,
-    },
-    cheatSheetCode: {
-      fontSize: 12,
+    cheatSheetMiniPreview: {
+      fontSize: 11,
       fontWeight: "500",
       fontFamily: "monospace",
+      marginBottom: 4,
     },
-    viewAllButton: {
+    cheatSheetMiniCategory: {
+      fontSize: 10,
+      fontWeight: "600",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+      flex: 1,
+    },
+    cheatSheetMiniFooter: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    cheatSheetMiniCount: {
+      fontSize: 10,
+      fontWeight: "600",
+    },
+    cheatSheetEmptyState: {
+      alignItems: "center",
+      paddingVertical: 20,
+      marginBottom: 16,
+    },
+    cheatSheetEmptyText: {
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    cheatSheetEmptySubtext: {
+      fontSize: 12,
+      fontWeight: "500",
+      marginTop: 2,
+    },
+    cheatSheetViewAllButton: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
@@ -1089,7 +1114,7 @@ const HomeScreen = ({ navigation }) => {
       borderRadius: 10,
       gap: 6,
     },
-    viewAllButtonText: {
+    cheatSheetViewAllText: {
       fontSize: 14,
       fontWeight: "700",
     },
@@ -1194,25 +1219,6 @@ const HomeScreen = ({ navigation }) => {
           {/* NeetCode 150 Tracker */}
           <View style={styles.section}>
             <NeetCodeTracker />
-          </View>
-
-          {/* Knowledge Cards */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>📚 Knowledge Hub</Text>
-              <Text style={styles.sectionSubtitle}>
-                Master the fundamentals
-              </Text>
-            </View>
-            <FlatList
-              data={knowledgeCards}
-              renderItem={({ item }) => <KnowledgeCard item={item} />}
-              keyExtractor={(item) => item.id.toString()}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.knowledgeCardsList}
-              ItemSeparatorComponent={() => <View style={{ width: 16 }} />}
-            />
           </View>
 
           {/* Daily Challenge */}

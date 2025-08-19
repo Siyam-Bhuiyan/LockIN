@@ -78,6 +78,25 @@ class StorageService {
     }
   }
 
+  // Cheat Sheets
+  async getCheatSheets() {
+    try {
+      const data = await AsyncStorage.getItem("cheatSheets");
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      console.error("Error getting cheat sheets:", error);
+      return [];
+    }
+  }
+
+  async saveCheatSheets(cheatSheets) {
+    try {
+      await AsyncStorage.setItem("cheatSheets", JSON.stringify(cheatSheets));
+    } catch (error) {
+      console.error("Error saving cheat sheets:", error);
+    }
+  }
+
   // NeetCode Progress
   async getNeetCodeProgress() {
     try {
@@ -150,6 +169,7 @@ class StorageService {
       const roadmaps = await this.getRoadmaps();
       const problems = await this.getProblems();
       const neetCodeProgress = await this.getNeetCodeProgress();
+      const cheatSheets = await this.getCheatSheets();
 
       return {
         projects,
@@ -157,6 +177,7 @@ class StorageService {
         roadmaps,
         problems,
         neetCodeProgress,
+        cheatSheets,
         exportDate: new Date().toISOString(),
       };
     } catch (error) {
@@ -173,6 +194,7 @@ class StorageService {
       if (data.problems) await this.saveProblems(data.problems);
       if (data.neetCodeProgress)
         await this.saveNeetCodeProgress(data.neetCodeProgress);
+      if (data.cheatSheets) await this.saveCheatSheets(data.cheatSheets);
       return true;
     } catch (error) {
       console.error("Error importing data:", error);

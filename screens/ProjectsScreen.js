@@ -41,17 +41,17 @@ const ProjectsScreen = () => {
     let filtered = projects;
 
     // Apply search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (project) =>
-          project.title.toLowerCase().includes(query) ||
-          project.description?.toLowerCase().includes(query) ||
-          project.tags?.some((tag) => tag.toLowerCase().includes(query)) ||
-          project.techStack?.toLowerCase().includes(query) ||
-          project.category?.toLowerCase().includes(query)
-      );
-    }
+    // if (searchQuery.trim()) {
+    //   const query = searchQuery.toLowerCase();
+    //   filtered = filtered.filter(
+    //     (project) =>
+    //       project.title.toLowerCase().includes(query) ||
+    //       project.description?.toLowerCase().includes(query) ||
+    //       project.tags?.some((tag) => tag.toLowerCase().includes(query)) ||
+    //       project.techStack?.toLowerCase().includes(query) ||
+    //       project.category?.toLowerCase().includes(query)
+    //   );
+    // }
 
     // Apply type filter
     if (filterType !== "all") {
@@ -393,7 +393,7 @@ const ProjectsScreen = () => {
         <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
           {searchQuery
             ? "Try adjusting your search or filters"
-            : "Start by creating your first project"}
+            : "Weak mind forgot about project lol"}
         </Text>
         {!searchQuery && (
           <TouchableOpacity
@@ -412,36 +412,9 @@ const ProjectsScreen = () => {
   const renderHeader = useCallback(
     () => (
       <View style={styles.headerContent}>
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
-          <View style={[styles.statCard, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.statValue, { color: theme.primary }]}>
-              {projects.length}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>
-              Projects
-            </Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.statValue, { color: theme.success }]}>
-              {projects.filter((p) => p.status === "completed").length}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>
-              Completed
-            </Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.statValue, { color: theme.warning }]}>
-              {projects.filter((p) => p.status === "in-progress").length}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.textSecondary }]}>
-              In Progress
-            </Text>
-          </View>
-        </View>
 
         {/* Search Bar */}
-        <View
+        {/* <View
           style={[
             styles.searchContainer,
             {
@@ -469,7 +442,7 @@ const ProjectsScreen = () => {
               />
             </TouchableOpacity>
           )}
-        </View>
+        </View> */}
 
         {/* Filters */}
         <View style={styles.filtersContainer}>
@@ -659,20 +632,20 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
   },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    marginLeft: 12,
-  },
+  // searchContainer: {
+  //   flexDirection: "row",
+  //   alignItems: "center",
+  //   borderRadius: 12,
+  //   paddingHorizontal: 16,
+  //   paddingVertical: 12,
+  //   marginBottom: 16,
+  //   borderWidth: 1,
+  // },
+  // searchInput: {
+  //   flex: 1,
+  //   fontSize: 16,
+  //   marginLeft: 12,
+  // },
   filtersContainer: {
     marginBottom: 16,
   },

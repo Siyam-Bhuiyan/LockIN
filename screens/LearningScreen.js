@@ -130,17 +130,17 @@ const LearningScreen = () => {
       filtered = filtered.filter((video) => video.stack === selectedStack);
     }
 
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (video) =>
-          video.title.toLowerCase().includes(query) ||
-          video.description?.toLowerCase().includes(query) ||
-          video.stack?.toLowerCase().includes(query) ||
-          video.instructor?.toLowerCase().includes(query)
-      );
-    }
+    // // Filter by search query
+    // if (searchQuery.trim()) {
+    //   const query = searchQuery.toLowerCase();
+    //   filtered = filtered.filter(
+    //     (video) =>
+    //       video.title.toLowerCase().includes(query) ||
+    //       video.description?.toLowerCase().includes(query) ||
+    //       video.stack?.toLowerCase().includes(query) ||
+    //       video.instructor?.toLowerCase().includes(query)
+    //   );
+    // }
 
     // Sort videos
     filtered.sort((a, b) => {
@@ -740,31 +740,31 @@ const LearningScreen = () => {
       borderRadius: 12,
       padding: 12,
     },
-    searchContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: theme.surface,
-      borderRadius: 12,
-      paddingHorizontal: 15,
-      marginBottom: 15,
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
-    searchInput: {
-      flex: 1,
-      height: 45,
-      fontSize: 16,
-      color: theme.text,
-      paddingHorizontal: 10,
-    },
-    searchIcon: {
-      marginRight: 5,
-    },
-    statsContainer: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginBottom: 15,
-    },
+    // searchContainer: {
+    //   flexDirection: "row",
+    //   alignItems: "center",
+    //   backgroundColor: theme.surface,
+    //   borderRadius: 12,
+    //   paddingHorizontal: 15,
+    //   marginBottom: 15,
+    //   borderWidth: 1,
+    //   borderColor: theme.border,
+    // },
+    // searchInput: {
+    //   flex: 1,
+    //   height: 45,
+    //   fontSize: 16,
+    //   color: theme.text,
+    //   paddingHorizontal: 10,
+    // },
+    // searchIcon: {
+    //   marginRight: 5,
+    // },
+    // statsContainer: {
+    //   flexDirection: "row",
+    //   justifyContent: "space-between",
+    //   marginBottom: 15,
+    // },
     statCard: {
       flex: 1,
       backgroundColor: theme.surface,
@@ -1244,7 +1244,7 @@ const LearningScreen = () => {
         </View>
 
         {/* Search Bar */}
-        <View style={styles.searchContainer}>
+        {/* <View style={styles.searchContainer}>
           <Ionicons
             name="search"
             size={18}
@@ -1267,10 +1267,10 @@ const LearningScreen = () => {
               />
             </TouchableOpacity>
           )}
-        </View>
+        </View> */}
 
         {/* Stats */}
-        <View style={styles.statsContainer}>
+        {/* <View style={styles.statsContainer}>
           <View style={styles.statCard}>
             <Text style={styles.statNumber}>{stats.total}</Text>
             <Text style={styles.statLabel}>Total</Text>
@@ -1287,7 +1287,7 @@ const LearningScreen = () => {
             </Text>
             <Text style={styles.statLabel}>Completed</Text>
           </View>
-        </View>
+        </View> */}
       </Animated.View>
 
       {/* Filters */}
