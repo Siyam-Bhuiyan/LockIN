@@ -142,7 +142,7 @@ export default function App() {
     async function prepare() {
       try {
         // Load fonts / storage / any init here
-        await new Promise((resolve) => setTimeout(resolve, 100)); // demo delay
+        await new Promise((resolve) => setTimeout(resolve, 300)); // demo delay
       } catch (e) {
         console.warn(e);
       } finally {
