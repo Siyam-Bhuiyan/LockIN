@@ -36,8 +36,7 @@ const RoadmapScreen = () => {
   const [expandedRoadmaps, setExpandedRoadmaps] = useState(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
-  const [sortBy, setSortBy] = useState("newest"); // newest, oldest, progress, alphabetical
-
+  const [sortBy, setSortBy] = useState("newest"); 
   const [newRoadmap, setNewRoadmap] = useState({
     title: "",
     category: "Learning",
