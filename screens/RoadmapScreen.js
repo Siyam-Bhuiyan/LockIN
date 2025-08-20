@@ -1,82 +1,69 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  Modal,
   TextInput,
+  TouchableOpacity,
   Alert,
+  ActivityIndicator,
+  Dimensions,
   Animated,
   StatusBar,
+  FlatList,
+  Modal,
+  RefreshControl,
+  SafeAreaView,
   Platform,
-  Dimensions,
-  Vibration,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
-import { useTheme } from "../context/ThemeContext";
-import Card from "../components/ui/Card";
-import Button from "../components/ui/Button";
-import ProgressBar from "../components/ui/ProgressBar";
-import StorageService from "../services/StorageService";
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, MaterialIcons, Feather } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import { useTheme } from '../context/ThemeContext';
+import GeminiService from '../services/GeminiService';
+import StorageService from '../services/StorageService';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 
-const { width: screenWidth } = Dimensions.get("window");
+const { width, height } = Dimensions.get('window');
+const isSmallDevice = width < 375;
+const headerHeight = Platform.OS === 'ios' ? 44 : 56;
 
 const RoadmapScreen = () => {
   const { theme, isDark } = useTheme();
+  const [searchQuery, setSearchQuery] = useState('');
   const [roadmaps, setRoadmaps] = useState([]);
-  const [filteredRoadmaps, setFilteredRoadmaps] = useState([]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [stepModalVisible, setStepModalVisible] = useState(false);
-  const [selectedRoadmap, setSelectedRoadmap] = useState(null);
-  const [expandedRoadmaps, setExpandedRoadmaps] = useState(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [sortBy, setSortBy] = useState("newest"); 
-  const [newRoadmap, setNewRoadmap] = useState({
-    title: "",
-    category: "Learning",
-    description: "",
-    targetDate: "",
-    priority: "Medium",
-    tags: [],
-  });
-
-  const [newStep, setNewStep] = useState({
-    title: "",
-    description: "",
-    estimatedHours: "",
-    resources: "",
-    priority: "Medium",
-  });
-
-  const categories = [
-    "All",
-    "Learning",
-    "Project",
-    "Career",
-    "Personal",
-    "Health",
+  const [currentRoadmap, setCurrentRoadmap] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [codeModalVisible, setCodeModalVisible] = useState(false);
+  const [selectedCode, setSelectedCode] = useState('');
+  const [expandedSteps, setExpandedSteps] = useState(new Set());
+  const [toastMessage, setToastMessage] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(true);
+  
+  const suggestedTopics = [
+    { title: 'React Development', icon: 'logo-react', color: '#61DAFB' },
+    { title: 'Python Programming', icon: 'logo-python', color: '#3776AB' },
+    { title: 'Machine Learning', icon: 'hardware-chip', color: '#FF6B6B' },
+    { title: 'Mobile Development', icon: 'phone-portrait', color: '#4ECDC4' },
+    { title: 'Data Science', icon: 'analytics', color: '#45B7D1' },
+    { title: 'Web Development', icon: 'globe', color: '#96CEB4' },
+    { title: 'JavaScript', icon: 'logo-javascript', color: '#F7DF1E' },
+    { title: 'DevOps', icon: 'server', color: '#FFA07A' },
   ];
-  const priorities = ["Low", "Medium", "High"];
-  const sortOptions = [
-    { key: "newest", label: "Newest First", icon: "time-outline" },
-    { key: "oldest", label: "Oldest First", icon: "time-outline" },
-    { key: "progress", label: "By Progress", icon: "trending-up-outline" },
-    { key: "alphabetical", label: "A-Z", icon: "text-outline" },
-  ];
-
-  // Animation values
-  const fadeAnim = useState(new Animated.Value(0))[0];
-  const slideAnim = useState(new Animated.Value(50))[0];
+  
+  const searchRef = useRef(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
     loadRoadmaps();
-    // Entrance animation
+    startAnimations();
+  }, []);
+
+  const startAnimations = () => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -85,1616 +72,1532 @@ const RoadmapScreen = () => {
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 600,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 100,
+        friction: 8,
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
-
-  useEffect(() => {
-    filterAndSortRoadmaps();
-  }, [roadmaps, searchQuery, selectedCategory, sortBy]);
+  };
 
   const loadRoadmaps = async () => {
-    const savedRoadmaps = await StorageService.getRoadmaps();
-    setRoadmaps(savedRoadmaps);
+    try {
+      const savedRoadmaps = await StorageService.getRoadmaps();
+      setRoadmaps(savedRoadmaps);
+    } catch (error) {
+      console.error('Error loading roadmaps:', error);
+    }
   };
 
-  const saveRoadmaps = async (updatedRoadmaps) => {
-    await StorageService.saveRoadmaps(updatedRoadmaps);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadRoadmaps();
+    setRefreshing(false);
+  };
+
+  const generateRoadmap = async () => {
+    if (!searchQuery.trim()) {
+      Alert.alert('Missing Topic', 'Please enter a topic to generate your learning roadmap', [
+        { text: 'OK', style: 'default' }
+      ]);
+      return;
+    }
+
+    setLoading(true);
+    setShowSuggestions(false);
+    
+    try {
+      const roadmap = await GeminiService.generateRoadmap(searchQuery.trim());
+      
+      const enhancedRoadmap = {
+        ...roadmap,
+        id: Date.now().toString(),
+        createdAt: new Date().toISOString(),
+        lastUpdated: new Date().toISOString(),
+        progress: 0,
+      };
+
+      const updatedRoadmaps = [enhancedRoadmap, ...roadmaps];
+      setRoadmaps(updatedRoadmaps);
+      await StorageService.saveRoadmaps(updatedRoadmaps);
+      
+      setCurrentRoadmap(enhancedRoadmap);
+      setSearchQuery('');
+      
+      // Success feedback with haptic
+      showToast('🎉 Roadmap generated successfully!', 'success');
+    } catch (error) {
+      console.error('Error generating roadmap:', error);
+      Alert.alert(
+        'Generation Failed', 
+        error.message || 'Unable to generate roadmap. Please check your connection and try again.',
+        [{ text: 'Retry', onPress: () => generateRoadmap() }, { text: 'Cancel', style: 'cancel' }]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleStep = async (stepIndex) => {
+    if (!currentRoadmap) return;
+
+    const updatedSteps = [...currentRoadmap.steps];
+    updatedSteps[stepIndex].done = !updatedSteps[stepIndex].done;
+    
+    const completedSteps = updatedSteps.filter(step => step.done).length;
+    const progress = (completedSteps / updatedSteps.length) * 100;
+    
+    const updatedRoadmap = {
+      ...currentRoadmap,
+      steps: updatedSteps,
+      progress,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    setCurrentRoadmap(updatedRoadmap);
+
+    // Update in storage
+    const updatedRoadmaps = roadmaps.map(rm => 
+      rm.id === currentRoadmap.id ? updatedRoadmap : rm
+    );
     setRoadmaps(updatedRoadmaps);
+    await StorageService.saveRoadmaps(updatedRoadmaps);
   };
 
-  const filterAndSortRoadmaps = () => {
-    let filtered = roadmaps.filter((roadmap) => {
-      const matchesSearch =
-        roadmap.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        roadmap.description.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesCategory =
-        selectedCategory === "All" || roadmap.category === selectedCategory;
-      return matchesSearch && matchesCategory;
-    });
+  const updateNotes = async (stepIndex, notes) => {
+    if (!currentRoadmap) return;
 
-    // Sort roadmaps
-    filtered.sort((a, b) => {
-      switch (sortBy) {
-        case "newest":
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        case "oldest":
-          return new Date(a.createdAt) - new Date(b.createdAt);
-        case "progress":
-          return getRoadmapProgress(b) - getRoadmapProgress(a);
-        case "alphabetical":
-          return a.title.localeCompare(b.title);
-        default:
-          return 0;
-      }
-    });
-
-    setFilteredRoadmaps(filtered);
-  };
-
-  const addRoadmap = async () => {
-    if (!newRoadmap.title.trim()) {
-      Alert.alert("Error", "Please enter roadmap title");
-      return;
-    }
-
-    const roadmap = {
-      id: Date.now().toString(),
-      ...newRoadmap,
-      steps: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+    const updatedSteps = [...currentRoadmap.steps];
+    updatedSteps[stepIndex].notes = notes;
+    
+    const updatedRoadmap = {
+      ...currentRoadmap,
+      steps: updatedSteps,
+      lastUpdated: new Date().toISOString(),
     };
 
-    const updatedRoadmaps = [...roadmaps, roadmap];
-    await saveRoadmaps(updatedRoadmaps);
-    setModalVisible(false);
-    setNewRoadmap({
-      title: "",
-      category: "Learning",
-      description: "",
-      targetDate: "",
-      priority: "Medium",
-      tags: [],
-    });
+    setCurrentRoadmap(updatedRoadmap);
 
-    // Success feedback
-    Vibration.vibrate(50);
+    const updatedRoadmaps = roadmaps.map(rm => 
+      rm.id === currentRoadmap.id ? updatedRoadmap : rm
+    );
+    setRoadmaps(updatedRoadmaps);
+    await StorageService.saveRoadmaps(updatedRoadmaps);
   };
 
-  const addStep = async () => {
-    if (!newStep.title.trim()) {
-      Alert.alert("Error", "Please enter step title");
-      return;
+  const toggleExpanded = (stepIndex) => {
+    const newExpanded = new Set(expandedSteps);
+    if (newExpanded.has(stepIndex)) {
+      newExpanded.delete(stepIndex);
+    } else {
+      newExpanded.add(stepIndex);
     }
-
-    const step = {
-      id: Date.now().toString(),
-      ...newStep,
-      completed: false,
-      completedAt: null,
-      createdAt: new Date().toISOString(),
-    };
-
-    const updatedRoadmaps = roadmaps.map((roadmap) =>
-      roadmap.id === selectedRoadmap.id
-        ? {
-            ...roadmap,
-            steps: [...roadmap.steps, step],
-            updatedAt: new Date().toISOString(),
-          }
-        : roadmap
-    );
-
-    await saveRoadmaps(updatedRoadmaps);
-    setStepModalVisible(false);
-    setNewStep({
-      title: "",
-      description: "",
-      estimatedHours: "",
-      resources: "",
-      priority: "Medium",
-    });
-
-    Vibration.vibrate(50);
+    setExpandedSteps(newExpanded);
   };
 
-  const toggleStep = async (roadmapId, stepId) => {
-    const updatedRoadmaps = roadmaps.map((roadmap) =>
-      roadmap.id === roadmapId
-        ? {
-            ...roadmap,
-            steps: roadmap.steps.map((step) =>
-              step.id === stepId
-                ? {
-                    ...step,
-                    completed: !step.completed,
-                    completedAt: !step.completed
-                      ? new Date().toISOString()
-                      : null,
-                  }
-                : step
-            ),
-            updatedAt: new Date().toISOString(),
-          }
-        : roadmap
-    );
+  const showToast = (message, type = 'success') => {
+    setToastMessage({ text: message, type });
+    setTimeout(() => setToastMessage(''), 3000);
+  };
 
-    await saveRoadmaps(updatedRoadmaps);
-
-    // Haptic feedback for completion
-    if (
-      !roadmaps
-        .find((r) => r.id === roadmapId)
-        .steps.find((s) => s.id === stepId).completed
-    ) {
-      Vibration.vibrate(100);
+  const copyCode = async (code) => {
+    try {
+      await Clipboard.setStringAsync(code);
+      showToast('📋 Code copied to clipboard!', 'success');
+    } catch (error) {
+      showToast('❌ Failed to copy code', 'error');
     }
   };
 
-  const deleteRoadmap = (roadmapId) => {
+  const selectSuggestedTopic = (topic) => {
+    setSearchQuery(topic.title);
+    setShowSuggestions(false);
+    // Auto-focus search input for immediate editing if needed
+    setTimeout(() => searchRef.current?.focus(), 100);
+  };
+
+  const showCodeModal = (code) => {
+    setSelectedCode(code);
+    setCodeModalVisible(true);
+  };
+
+  const deleteRoadmap = async (roadmapId) => {
     Alert.alert(
-      "Delete Roadmap",
-      "Are you sure you want to delete this roadmap? This action cannot be undone.",
+      'Delete Roadmap',
+      'This action cannot be undone. Are you sure?',
       [
-        { text: "Cancel", style: "cancel" },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: "Delete",
-          style: "destructive",
+          text: 'Delete',
+          style: 'destructive',
           onPress: async () => {
-            const updatedRoadmaps = roadmaps.filter((r) => r.id !== roadmapId);
-            await saveRoadmaps(updatedRoadmaps);
-            Vibration.vibrate(200);
+            const updatedRoadmaps = roadmaps.filter(rm => rm.id !== roadmapId);
+            setRoadmaps(updatedRoadmaps);
+            await StorageService.saveRoadmaps(updatedRoadmaps);
+            
+            if (currentRoadmap?.id === roadmapId) {
+              setCurrentRoadmap(null);
+            }
+            showToast('🗑️ Roadmap deleted', 'success');
           },
         },
       ]
     );
   };
 
-  const deleteStep = (roadmapId, stepId) => {
-    Alert.alert("Delete Step", "Are you sure you want to delete this step?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          const updatedRoadmaps = roadmaps.map((roadmap) =>
-            roadmap.id === roadmapId
-              ? {
-                  ...roadmap,
-                  steps: roadmap.steps.filter((s) => s.id !== stepId),
-                  updatedAt: new Date().toISOString(),
-                }
-              : roadmap
-          );
-          await saveRoadmaps(updatedRoadmaps);
+  const getProgressColor = (progress) => {
+    if (progress < 25) return theme.error;
+    if (progress < 50) return theme.warning;
+    if (progress < 75) return theme.accent;
+    return theme.success;
+  };
+
+  // New component for enhanced search header
+  const renderEnhancedSearchHeader = () => (
+    <Animated.View
+      style={[
+        styles.headerContainer,
+        { 
+          backgroundColor: theme.background,
+          opacity: fadeAnim,
+          transform: [{ translateY: slideAnim }]
         },
-      },
-    ]);
-  };
-
-  const moveStep = async (roadmapId, stepId, direction) => {
-    const roadmap = roadmaps.find((r) => r.id === roadmapId);
-    const stepIndex = roadmap.steps.findIndex((s) => s.id === stepId);
-
-    if (
-      (direction === "up" && stepIndex === 0) ||
-      (direction === "down" && stepIndex === roadmap.steps.length - 1)
-    ) {
-      return;
-    }
-
-    const newSteps = [...roadmap.steps];
-    const targetIndex = direction === "up" ? stepIndex - 1 : stepIndex + 1;
-    [newSteps[stepIndex], newSteps[targetIndex]] = [
-      newSteps[targetIndex],
-      newSteps[stepIndex],
-    ];
-
-    const updatedRoadmaps = roadmaps.map((r) =>
-      r.id === roadmapId
-        ? {
-            ...r,
-            steps: newSteps,
-            updatedAt: new Date().toISOString(),
-          }
-        : r
-    );
-
-    await saveRoadmaps(updatedRoadmaps);
-    Vibration.vibrate(25);
-  };
-
-  const toggleExpanded = (roadmapId) => {
-    const newExpanded = new Set(expandedRoadmaps);
-    if (newExpanded.has(roadmapId)) {
-      newExpanded.delete(roadmapId);
-    } else {
-      newExpanded.add(roadmapId);
-    }
-    setExpandedRoadmaps(newExpanded);
-  };
-
-  const getRoadmapProgress = (roadmap) => {
-    if (roadmap.steps.length === 0) return 0;
-    const completedSteps = roadmap.steps.filter(
-      (step) => step.completed
-    ).length;
-    return completedSteps / roadmap.steps.length;
-  };
-
-  const getCategoryColor = (category) => {
-    switch (category) {
-      case "Learning":
-        return theme.accent;
-      case "Project":
-        return theme.primary;
-      case "Career":
-        return theme.secondary;
-      case "Personal":
-        return "#ff6b6b";
-      case "Health":
-        return "#51cf66";
-      default:
-        return theme.accent;
-    }
-  };
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case "High":
-        return theme.error;
-      case "Medium":
-        return theme.warning;
-      case "Low":
-        return theme.success;
-      default:
-        return theme.textSecondary;
-    }
-  };
-
-  const getProgressStatus = (progress) => {
-    if (progress === 1) return "Completed";
-    if (progress >= 0.8) return "Almost Done";
-    if (progress >= 0.5) return "In Progress";
-    if (progress > 0) return "Started";
-    return "Not Started";
-  };
-
-  const getTotalStats = useMemo(() => {
-    const total = roadmaps.length;
-    const completed = roadmaps.filter(
-      (r) => getRoadmapProgress(r) === 1
-    ).length;
-    const inProgress = roadmaps.filter((r) => {
-      const progress = getRoadmapProgress(r);
-      return progress > 0 && progress < 1;
-    }).length;
-    const notStarted = roadmaps.filter(
-      (r) => getRoadmapProgress(r) === 0
-    ).length;
-
-    return { total, completed, inProgress, notStarted };
-  }, [roadmaps]);
-
-  const RoadmapCard = ({ roadmap, index }) => {
-    const progress = getRoadmapProgress(roadmap);
-    const completedSteps = roadmap.steps.filter(
-      (step) => step.completed
-    ).length;
-    const isExpanded = expandedRoadmaps.has(roadmap.id);
-    const progressStatus = getProgressStatus(progress);
-
-    return (
-      <Animated.View
-        style={[
-          styles.roadmapCard,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          },
-        ]}
+      ]}
+    >
+      <LinearGradient
+        colors={[theme.background, theme.background + 'F0']}
+        style={styles.headerGradient}
       >
-        <LinearGradient
-          colors={[theme.surface, isDark ? "#1a202c" : "#f7fafc"]}
-          style={styles.cardGradient}
-        >
-          <Card style={styles.cardContent}>
-            {/* Header */}
-            <View style={styles.roadmapHeader}>
-              <View style={styles.roadmapInfo}>
-                <View style={styles.titleRow}>
-                  <Text style={[styles.roadmapTitle, { color: theme.text }]}>
-                    {roadmap.title}
-                  </Text>
-                  {roadmap.priority && (
-                    <View
-                      style={[
-                        styles.priorityBadge,
-                        { backgroundColor: getPriorityColor(roadmap.priority) },
-                      ]}
-                    >
-                      <Text style={styles.priorityText}>
-                        {roadmap.priority}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.metaInfo}>
-                  <View
-                    style={[
-                      styles.categoryTag,
-                      { backgroundColor: getCategoryColor(roadmap.category) },
-                    ]}
-                  >
-                    <Text style={styles.categoryText}>{roadmap.category}</Text>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.statusTag,
-                      { backgroundColor: theme.border },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { color: theme.textSecondary },
-                      ]}
-                    >
-                      {progressStatus}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <TouchableOpacity
-                onPress={() => deleteRoadmap(roadmap.id)}
-                style={styles.deleteButton}
-              >
-                <Ionicons name="trash-outline" size={20} color={theme.error} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Description */}
-            {roadmap.description && (
-              <Text
-                style={[
-                  styles.roadmapDescription,
-                  { color: theme.textSecondary },
-                ]}
-              >
-                {roadmap.description}
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.headerContent}>
+            {/* Title Section */}
+            <Animated.View 
+              style={[
+                styles.titleSection,
+                { transform: [{ scale: scaleAnim }] }
+              ]}
+            >
+              <Text style={[styles.mainTitle, { color: theme.text }]}>
+                AI Learning Roadmaps
               </Text>
-            )}
+              <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+                Personalized learning paths powered by AI
+              </Text>
+            </Animated.View>
 
-            {/* Progress Section */}
-            <View style={styles.progressSection}>
-              <View style={styles.progressHeader}>
-                <Text style={[styles.progressLabel, { color: theme.text }]}>
-                  Progress: {completedSteps}/{roadmap.steps.length} steps
-                </Text>
-                <Text
-                  style={[
-                    styles.progressPercentage,
-                    { color: getCategoryColor(roadmap.category) },
-                  ]}
-                >
-                  {Math.round(progress * 100)}%
-                </Text>
-              </View>
-              <ProgressBar
-                progress={progress}
-                color={getCategoryColor(roadmap.category)}
-                style={styles.progressBar}
-              />
-            </View>
-
-            {/* Action Buttons */}
-            <View style={styles.actionButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  { backgroundColor: theme.success + "20" },
-                ]}
-                onPress={() => {
-                  setSelectedRoadmap(roadmap);
-                  setStepModalVisible(true);
-                }}
-              >
-                <Ionicons
-                  name="add-circle-outline"
-                  size={16}
-                  color={theme.success}
+            {/* Search Section */}
+            <View style={styles.searchSection}>
+              <View style={[
+                styles.searchInputWrapper,
+                { 
+                  backgroundColor: theme.surface,
+                  borderColor: searchQuery ? theme.primary : theme.border,
+                  shadowColor: theme.primary,
+                }
+              ]}>
+                <Ionicons name="search" size={20} color={theme.textSecondary} />
+                <TextInput
+                  ref={searchRef}
+                  style={[styles.searchInput, { color: theme.text }]}
+                  placeholder="What would you like to learn today?"
+                  placeholderTextColor={theme.textSecondary}
+                  value={searchQuery}
+                  onChangeText={(text) => {
+                    setSearchQuery(text);
+                    setShowSuggestions(!text.trim());
+                  }}
+                  onSubmitEditing={generateRoadmap}
+                  returnKeyType="search"
+                  selectionColor={theme.primary}
                 />
-                <Text
-                  style={[styles.actionButtonText, { color: theme.success }]}
-                >
-                  Add Step
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.actionButton,
-                  { backgroundColor: theme.primary + "20" },
-                ]}
-                onPress={() => toggleExpanded(roadmap.id)}
-              >
-                <Ionicons
-                  name={
-                    isExpanded ? "chevron-up-outline" : "chevron-down-outline"
-                  }
-                  size={16}
-                  color={theme.primary}
-                />
-                <Text
-                  style={[styles.actionButtonText, { color: theme.primary }]}
-                >
-                  {isExpanded ? "Collapse" : "Expand"} ({roadmap.steps.length})
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Expanded Steps */}
-            {isExpanded && roadmap.steps.length > 0 && (
-              <View style={styles.expandedSteps}>
-                <View style={styles.stepsHeader}>
-                  <Text style={[styles.stepsTitle, { color: theme.text }]}>
-                    Steps
-                  </Text>
-                </View>
-
-                {roadmap.steps.map((step, stepIndex) => (
-                  <View
-                    key={step.id}
-                    style={[
-                      styles.stepItem,
-                      { borderBottomColor: theme.border },
-                    ]}
+                {searchQuery ? (
+                  <TouchableOpacity 
+                    onPress={() => {
+                      setSearchQuery('');
+                      setShowSuggestions(true);
+                    }}
+                    style={styles.clearButton}
                   >
+                    <Ionicons name="close-circle" size={20} color={theme.textSecondary} />
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+
+              {/* Enhanced Generate Button */}
+              <TouchableOpacity
+                style={[
+                  styles.generateBtn,
+                  (!searchQuery.trim() || loading) && styles.generateBtnDisabled,
+                ]}
+                onPress={generateRoadmap}
+                disabled={loading || !searchQuery.trim()}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={searchQuery.trim() ? theme.gradient : [theme.border, theme.border]}
+                  style={styles.generateBtnGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="sparkles" size={18} color="#fff" />
+                      <Text style={styles.generateBtnText}>Generate</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+
+            {/* Enhanced Suggested Topics */}
+            {showSuggestions && !searchQuery && (
+              <Animated.View 
+                style={[
+                  styles.suggestionsSection,
+                  { opacity: fadeAnim }
+                ]}
+              >
+                <Text style={[styles.suggestionsTitle, { color: theme.text }]}>
+                  Popular Topics
+                </Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.topicsContainer}
+                  decelerationRate="fast"
+                  snapToInterval={width * 0.4}
+                >
+                  {suggestedTopics.map((topic, index) => (
                     <TouchableOpacity
-                      style={styles.stepCheckbox}
-                      onPress={() => toggleStep(roadmap.id, step.id)}
+                      key={index}
+                      onPress={() => selectSuggestedTopic(topic)}
+                      style={[
+                        styles.topicCard,
+                        { backgroundColor: theme.surface }
+                      ]}
+                      activeOpacity={0.7}
                     >
-                      <Ionicons
-                        name={
-                          step.completed
-                            ? "checkmark-circle"
-                            : "ellipse-outline"
-                        }
-                        size={24}
-                        color={
-                          step.completed ? theme.success : theme.textSecondary
-                        }
-                      />
-                    </TouchableOpacity>
-
-                    <View style={styles.stepContent}>
-                      <Text
-                        style={[
-                          styles.stepTitle,
-                          {
-                            color: step.completed
-                              ? theme.textSecondary
-                              : theme.text,
-                            textDecorationLine: step.completed
-                              ? "line-through"
-                              : "none",
-                          },
-                        ]}
-                      >
-                        {step.title}
-                      </Text>
-
-                      {step.description && (
-                        <Text
-                          style={[
-                            styles.stepDescription,
-                            { color: theme.textSecondary },
-                          ]}
-                        >
-                          {step.description}
-                        </Text>
-                      )}
-
-                      <View style={styles.stepMeta}>
-                        {step.estimatedHours && (
-                          <View style={styles.metaItem}>
-                            <Ionicons
-                              name="time-outline"
-                              size={12}
-                              color={theme.textSecondary}
-                            />
-                            <Text
-                              style={[
-                                styles.metaText,
-                                { color: theme.textSecondary },
-                              ]}
-                            >
-                              {step.estimatedHours}h
-                            </Text>
-                          </View>
-                        )}
-
-                        {step.priority && (
-                          <View
-                            style={[
-                              styles.stepPriorityBadge,
-                              {
-                                backgroundColor:
-                                  getPriorityColor(step.priority) + "20",
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.stepPriorityText,
-                                { color: getPriorityColor(step.priority) },
-                              ]}
-                            >
-                              {step.priority}
-                            </Text>
-                          </View>
-                        )}
-
-                        {step.completed && step.completedAt && (
-                          <Text
-                            style={[
-                              styles.completedDate,
-                              { color: theme.success },
-                            ]}
-                          >
-                            ✓ {new Date(step.completedAt).toLocaleDateString()}
-                          </Text>
-                        )}
+                      <View style={[styles.topicIconContainer, { backgroundColor: topic.color + '20' }]}>
+                        <Ionicons name={topic.icon} size={24} color={topic.color} />
                       </View>
-                    </View>
-
-                    <View style={styles.stepActions}>
-                      <TouchableOpacity
-                        style={styles.moveButton}
-                        onPress={() => moveStep(roadmap.id, step.id, "up")}
-                        disabled={stepIndex === 0}
-                      >
-                        <Ionicons
-                          name="chevron-up-outline"
-                          size={16}
-                          color={
-                            stepIndex === 0 ? theme.border : theme.textSecondary
-                          }
-                        />
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.moveButton}
-                        onPress={() => moveStep(roadmap.id, step.id, "down")}
-                        disabled={stepIndex === roadmap.steps.length - 1}
-                      >
-                        <Ionicons
-                          name="chevron-down-outline"
-                          size={16}
-                          color={
-                            stepIndex === roadmap.steps.length - 1
-                              ? theme.border
-                              : theme.textSecondary
-                          }
-                        />
-                      </TouchableOpacity>
-
-                      <TouchableOpacity
-                        style={styles.moveButton}
-                        onPress={() => deleteStep(roadmap.id, step.id)}
-                      >
-                        <Ionicons
-                          name="close-circle-outline"
-                          size={16}
-                          color={theme.error}
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-              </View>
+                      <Text style={[styles.topicTitle, { color: theme.text }]} numberOfLines={2}>
+                        {topic.title}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </Animated.View>
             )}
-
-            {/* Target Date */}
-            {roadmap.targetDate && (
-              <View style={styles.targetDate}>
-                <Ionicons
-                  name="calendar-outline"
-                  size={14}
-                  color={theme.textSecondary}
-                />
-                <Text
-                  style={[
-                    styles.targetDateText,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  Target: {new Date(roadmap.targetDate).toLocaleDateString()}
-                </Text>
-              </View>
-            )}
-          </Card>
-        </LinearGradient>
-      </Animated.View>
-    );
-  };
-
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: theme.background,
-    },
-    header: {
-      paddingHorizontal: 20,
-      paddingVertical: 16,
-    },
-    headerTop: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 16,
-    },
-    title: {
-      fontSize: 28,
-      fontWeight: "bold",
-      color: theme.text,
-    },
-    addButton: {
-      backgroundColor: theme.secondary,
-      borderRadius: 12,
-      padding: 12,
-      elevation: 2,
-      shadowColor: theme.cardShadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-    },
-    searchContainer: {
-      backgroundColor: theme.surface,
-      borderRadius: 12,
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      marginBottom: 16,
-      elevation: 1,
-      shadowColor: theme.cardShadow,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.05,
-      shadowRadius: 2,
-    },
-    searchInput: {
-      flex: 1,
-      marginLeft: 8,
-      fontSize: 16,
-      color: theme.text,
-    },
-    filterContainer: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginBottom: 8,
-    },
-    categoryScroll: {
-      flex: 1,
-      marginRight: 12,
-    },
-    categoryContainer: {
-      flexDirection: "row",
-      paddingRight: 20,
-    },
-    categoryButton: {
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      borderRadius: 20,
-      marginRight: 8,
-      backgroundColor: theme.border,
-    },
-    categoryButtonActive: {
-      backgroundColor: theme.primary,
-    },
-    categoryButtonText: {
-      fontSize: 14,
-      fontWeight: "500",
-      color: theme.textSecondary,
-    },
-    categoryButtonTextActive: {
-      color: "#ffffff",
-    },
-    sortButton: {
-      backgroundColor: theme.surface,
-      borderRadius: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      flexDirection: "row",
-      alignItems: "center",
-      elevation: 1,
-      shadowColor: theme.cardShadow,
-      shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.05,
-      shadowRadius: 2,
-    },
-    sortButtonText: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      marginLeft: 4,
-    },
-    statsContainer: {
-      backgroundColor: theme.surface,
-      borderRadius: 16,
-      padding: 16,
-      marginBottom: 16,
-      elevation: 2,
-      shadowColor: theme.cardShadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-    },
-    statsTitle: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: theme.text,
-      marginBottom: 12,
-    },
-    statsRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-    },
-    statItem: {
-      alignItems: "center",
-      flex: 1,
-    },
-    statNumber: {
-      fontSize: 20,
-      fontWeight: "bold",
-      color: theme.primary,
-    },
-    statLabel: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      marginTop: 4,
-    },
-    scrollContainer: {
-      flex: 1,
-      paddingHorizontal: 20,
-    },
-    roadmapCard: {
-      marginBottom: 16,
-    },
-    cardGradient: {
-      borderRadius: 16,
-    },
-    cardContent: {
-      margin: 0,
-      padding: 20,
-    },
-    roadmapHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      marginBottom: 12,
-    },
-    roadmapInfo: {
-      flex: 1,
-    },
-    titleRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 8,
-    },
-    roadmapTitle: {
-      fontSize: 18,
-      fontWeight: "bold",
-      flex: 1,
-    },
-    priorityBadge: {
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 8,
-      marginLeft: 8,
-    },
-    priorityText: {
-      fontSize: 10,
-      color: "#ffffff",
-      fontWeight: "600",
-    },
-    metaInfo: {
-      flexDirection: "row",
-      alignItems: "center",
-    },
-    categoryTag: {
-      alignSelf: "flex-start",
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 12,
-      marginRight: 8,
-    },
-    categoryText: {
-      fontSize: 12,
-      color: "#ffffff",
-      fontWeight: "600",
-    },
-    statusTag: {
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 12,
-    },
-    statusText: {
-      fontSize: 12,
-      fontWeight: "500",
-    },
-    deleteButton: {
-      padding: 4,
-      borderRadius: 8,
-    },
-    roadmapDescription: {
-      fontSize: 14,
-      lineHeight: 20,
-      marginBottom: 16,
-    },
-    progressSection: {
-      marginBottom: 16,
-    },
-    progressHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      marginBottom: 8,
-    },
-    progressLabel: {
-      fontSize: 14,
-      fontWeight: "600",
-    },
-    progressPercentage: {
-      fontSize: 14,
-      fontWeight: "bold",
-    },
-    progressBar: {
-      height: 6,
-      borderRadius: 3,
-    },
-    actionButtons: {
-      flexDirection: "row",
-      marginBottom: 16,
-    },
-    actionButton: {
-      flex: 1,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      paddingVertical: 10,
-      paddingHorizontal: 16,
-      borderRadius: 8,
-      marginHorizontal: 4,
-    },
-    actionButtonText: {
-      fontSize: 14,
-      fontWeight: "600",
-      marginLeft: 4,
-    },
-    expandedSteps: {
-      marginTop: 8,
-      paddingTop: 16,
-      borderTopWidth: 1,
-      borderTopColor: theme.border,
-    },
-    stepsHeader: {
-      marginBottom: 12,
-    },
-    stepsTitle: {
-      fontSize: 16,
-      fontWeight: "600",
-    },
-    stepItem: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      paddingVertical: 12,
-      borderBottomWidth: 1,
-    },
-    stepCheckbox: {
-      marginRight: 12,
-      marginTop: 2,
-    },
-    stepContent: {
-      flex: 1,
-    },
-    stepTitle: {
-      fontSize: 14,
-      fontWeight: "600",
-      marginBottom: 4,
-    },
-    stepDescription: {
-      fontSize: 12,
-      lineHeight: 16,
-      marginBottom: 8,
-    },
-    stepMeta: {
-      flexDirection: "row",
-      alignItems: "center",
-      flexWrap: "wrap",
-    },
-    metaItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginRight: 12,
-      marginBottom: 4,
-    },
-    metaText: {
-      fontSize: 11,
-      marginLeft: 4,
-    },
-    stepPriorityBadge: {
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 8,
-      marginRight: 8,
-      marginBottom: 4,
-    },
-    stepPriorityText: {
-      fontSize: 10,
-      fontWeight: "600",
-    },
-    completedDate: {
-      fontSize: 11,
-      fontWeight: "500",
-    },
-    stepActions: {
-      alignItems: "center",
-      marginLeft: 8,
-    },
-    moveButton: {
-      padding: 4,
-      marginVertical: 2,
-    },
-    targetDate: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginTop: 12,
-      paddingTop: 12,
-      borderTopWidth: 1,
-      borderTopColor: theme.border,
-    },
-    targetDateText: {
-      fontSize: 12,
-      marginLeft: 4,
-    },
-    emptyState: {
-      alignItems: "center",
-      justifyContent: "center",
-      paddingVertical: 60,
-      paddingHorizontal: 40,
-    },
-    emptyIcon: {
-      marginBottom: 16,
-    },
-    emptyTitle: {
-      fontSize: 18,
-      fontWeight: "bold",
-      color: theme.text,
-      marginBottom: 8,
-      textAlign: "center",
-    },
-    emptyText: {
-      fontSize: 14,
-      textAlign: "center",
-      color: theme.textSecondary,
-      lineHeight: 20,
-    },
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0, 0, 0, 0.5)",
-      justifyContent: "center",
-      alignItems: "center",
-    },
-    modalContent: {
-      width: "90%",
-      maxWidth: 400,
-      backgroundColor: theme.surface,
-      borderRadius: 20,
-      padding: 24,
-      maxHeight: "85%",
-      elevation: 10,
-      shadowColor: theme.cardShadow,
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.3,
-      shadowRadius: 20,
-    },
-    // New Mobile-Responsive Modal Styles
-    mobileModalOverlay: {
-      flex: 1,
-      backgroundColor: "rgba(0, 0, 0, 0.6)",
-      justifyContent: "flex-end",
-    },
-    mobileModalContainer: {
-      backgroundColor: theme.surface,
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      maxHeight: "90%",
-      minHeight: "60%",
-      flex: 1,
-      marginTop: 60,
-    },
-    mobileModalHeader: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      paddingHorizontal: 24,
-      paddingTop: 20,
-      paddingBottom: 16,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
-    },
-    modalCloseButton: {
-      padding: 8,
-      borderRadius: 20,
-      backgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)",
-    },
-    mobileModalScrollView: {
-      flex: 1,
-    },
-    mobileModalContent: {
-      paddingHorizontal: 24,
-      paddingVertical: 16,
-      paddingBottom: 20,
-    },
-    mobileModalButtons: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      paddingHorizontal: 24,
-      paddingVertical: 20,
-      paddingBottom: Platform.select({ ios: 34, android: 20 }),
-      gap: 16,
-      backgroundColor: theme.surface,
-      borderTopWidth: 1,
-      borderTopColor: theme.border,
-    },
-    mobileModalButton: {
-      flex: 1,
-    },
-    modalTitle: {
-      fontSize: 22,
-      fontWeight: "bold",
-      color: theme.text,
-      marginBottom: 20,
-      textAlign: "center",
-    },
-    inputLabel: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: theme.text,
-      marginBottom: 8,
-      marginTop: 16,
-    },
-    input: {
-      borderWidth: 1.5,
-      borderColor: theme.border,
-      borderRadius: 12,
-      padding: 16,
-      fontSize: 16,
-      color: theme.text,
-      backgroundColor: theme.background,
-      marginBottom: 8,
-    },
-    inputFocused: {
-      borderColor: theme.primary,
-    },
-    textArea: {
-      height: 100,
-      textAlignVertical: "top",
-    },
-    categorySelector: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      marginBottom: 8,
-    },
-    categoryOption: {
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      margin: 4,
-      borderRadius: 12,
-      alignItems: "center",
-      borderWidth: 1.5,
-      borderColor: theme.border,
-      backgroundColor: theme.background,
-    },
-    categoryOptionSelected: {
-      backgroundColor: theme.primary,
-      borderColor: theme.primary,
-    },
-    categoryOptionText: {
-      fontWeight: "600",
-      fontSize: 14,
-      color: theme.text,
-    },
-    categoryOptionTextSelected: {
-      color: "#ffffff",
-    },
-    prioritySelector: {
-      flexDirection: "row",
-      marginBottom: 8,
-    },
-    priorityOption: {
-      flex: 1,
-      paddingVertical: 12,
-      marginHorizontal: 4,
-      borderRadius: 12,
-      alignItems: "center",
-      borderWidth: 1.5,
-      borderColor: theme.border,
-      backgroundColor: theme.background,
-    },
-    priorityOptionSelected: {
-      borderColor: theme.primary,
-    },
-    priorityOptionText: {
-      fontWeight: "600",
-      fontSize: 14,
-      color: theme.text,
-    },
-    modalButtons: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginTop: 24,
-    },
-    modalButton: {
-      flex: 1,
-      marginHorizontal: 6,
-    },
-    sortModal: {
-      position: "absolute",
-      top: 120,
-      right: 20,
-      backgroundColor: theme.surface,
-      borderRadius: 12,
-      padding: 8,
-      elevation: 8,
-      shadowColor: theme.cardShadow,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 8,
-      minWidth: 160,
-    },
-    sortOption: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      borderRadius: 8,
-    },
-    sortOptionActive: {
-      backgroundColor: theme.primary + "20",
-    },
-    sortOptionText: {
-      fontSize: 14,
-      color: theme.text,
-      marginLeft: 8,
-      fontWeight: "500",
-    },
-    sortOptionTextActive: {
-      color: theme.primary,
-      fontWeight: "600",
-    },
-  });
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar
-        barStyle={isDark ? "light-content" : "dark-content"}
-        backgroundColor={theme.background}
-      />
-
-      <View style={styles.header}>
-        {/* Header Top */}
-        <View style={styles.headerTop}>
-          <Text style={styles.title}>🗺 Roadmap</Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setModalVisible(true)}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="add" size={24} color="#ffffff" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Ionicons
-            name="search-outline"
-            size={20}
-            color={theme.textSecondary}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search roadmaps..."
-            placeholderTextColor={theme.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <Ionicons
-                name="close-circle"
-                size={20}
-                color={theme.textSecondary}
-              />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Filters */}
-        <View style={styles.filterContainer}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.categoryScroll}
-          >
-            <View style={styles.categoryContainer}>
-              {categories.map((category) => (
-                <TouchableOpacity
-                  key={category}
-                  style={[
-                    styles.categoryButton,
-                    selectedCategory === category &&
-                      styles.categoryButtonActive,
-                  ]}
-                  onPress={() => setSelectedCategory(category)}
-                >
-                  <Text
-                    style={[
-                      styles.categoryButtonText,
-                      selectedCategory === category &&
-                        styles.categoryButtonTextActive,
-                    ]}
-                  >
-                    {category}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-
-          <TouchableOpacity
-            style={styles.sortButton}
-            onPress={() => {
-              Alert.alert(
-                "Sort Options",
-                "Choose sorting method",
-                sortOptions.map((option) => ({
-                  text: option.label,
-                  onPress: () => setSortBy(option.key),
-                  style: sortBy === option.key ? "default" : "cancel",
-                }))
-              );
-            }}
-          >
-            <Ionicons
-              name="funnel-outline"
-              size={16}
-              color={theme.textSecondary}
-            />
-            <Text style={styles.sortButtonText}>Sort</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Stats Summary */}
-        {roadmaps.length > 0 && (
-          <View style={styles.statsContainer}>
-            <Text style={styles.statsTitle}>Overview</Text>
-            <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{getTotalStats.total}</Text>
-                <Text style={styles.statLabel}>Total</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={[styles.statNumber, { color: theme.success }]}>
-                  {getTotalStats.completed}
-                </Text>
-                <Text style={styles.statLabel}>Completed</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={[styles.statNumber, { color: theme.warning }]}>
-                  {getTotalStats.inProgress}
-                </Text>
-                <Text style={styles.statLabel}>In Progress</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text
-                  style={[styles.statNumber, { color: theme.textSecondary }]}
-                >
-                  {getTotalStats.notStarted}
-                </Text>
-                <Text style={styles.statLabel}>Not Started</Text>
-              </View>
-            </View>
           </View>
+        </SafeAreaView>
+      </LinearGradient>
+    </Animated.View>
+  );
+
+  // Enhanced roadmap list with better organization
+  const renderEnhancedRoadmapsList = () => (
+    <View style={styles.mainContent}>
+      <View style={styles.listHeader}>
+        <View style={styles.listTitleSection}>
+          <Text style={[styles.listTitle, { color: theme.text }]}>
+            Your Learning Journey
+          </Text>
+          <Text style={[styles.listSubtitle, { color: theme.textSecondary }]}>
+            {roadmaps.length} roadmap{roadmaps.length !== 1 ? 's' : ''} • Track your progress
+          </Text>
+        </View>
+        
+        {roadmaps.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setShowSuggestions(!showSuggestions)}
+            style={[styles.toggleButton, { backgroundColor: theme.surface }]}
+          >
+            <Ionicons 
+              name={showSuggestions ? "chevron-up" : "add"} 
+              size={20} 
+              color={theme.primary} 
+            />
+          </TouchableOpacity>
         )}
       </View>
 
-      <ScrollView
-        style={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
-      >
-        {filteredRoadmaps.map((roadmap, index) => (
-          <RoadmapCard key={roadmap.id} roadmap={roadmap} index={index} />
-        ))}
+      {roadmaps.length === 0 ? (
+        <View style={styles.emptyStateContainer}>
+          <Animated.View 
+            style={[
+              styles.emptyStateContent,
+              { 
+                backgroundColor: theme.surface,
+                transform: [{ scale: scaleAnim }],
+                opacity: fadeAnim 
+              }
+            ]}
+          >
+            <LinearGradient
+              colors={[theme.primary + '20', theme.secondary + '20']}
+              style={styles.emptyIconContainer}
+            >
+              <Ionicons name="map-outline" size={48} color={theme.primary} />
+            </LinearGradient>
+            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+              Start Your Learning Journey
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
+              Generate your first AI-powered roadmap and begin mastering new skills with personalized guidance.
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setShowSuggestions(true);
+                searchRef.current?.focus();
+              }}
+              style={[styles.emptyActionButton, { backgroundColor: theme.primary }]}
+            >
+              <Ionicons name="add" size={20} color="#fff" />
+              <Text style={styles.emptyActionText}>Create Roadmap</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      ) : (
+        <FlatList
+          data={roadmaps}
+          keyExtractor={(item) => item.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.roadmapsList}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[theme.primary]}
+              tintColor={theme.primary}
+              progressBackgroundColor={theme.surface}
+            />
+          }
+          renderItem={({ item, index }) => (
+            <RoadmapCard 
+              roadmap={item} 
+              index={index} 
+              onSelect={() => setCurrentRoadmap(item)}
+              onDelete={() => deleteRoadmap(item.id)}
+              theme={theme}
+              fadeAnim={fadeAnim}
+              slideAnim={slideAnim}
+              getProgressColor={getProgressColor}
+            />
+          )}
+        />
+      )}
+    </View>
+  );
 
-        {filteredRoadmaps.length === 0 && (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyIcon}>
+// Enhanced Roadmap Card Component
+const RoadmapCard = ({ roadmap, index, onSelect, onDelete, theme, fadeAnim, slideAnim, getProgressColor }) => (
+  <Animated.View
+    style={[
+      styles.enhancedRoadmapCard,
+      {
+        backgroundColor: theme.surface,
+        opacity: fadeAnim,
+        transform: [{ 
+          translateY: slideAnim.interpolate({
+            inputRange: [0, 30],
+            outputRange: [0, 30 + (index * 10)],
+          })
+        }],
+      },
+    ]}
+  >
+    <TouchableOpacity
+      onPress={onSelect}
+      style={styles.roadmapCardTouchable}
+      activeOpacity={0.8}
+    >
+      {/* Header with title and actions */}
+      <View style={styles.enhancedCardHeader}>
+        <View style={styles.cardTitleSection}>
+          <Text style={[styles.enhancedCardTitle, { color: theme.text }]} numberOfLines={2}>
+            {roadmap.topic}
+          </Text>
+          <View style={styles.cardMetaRow}>
+            <Text style={[styles.cardDate, { color: theme.textSecondary }]}>
+              {new Date(roadmap.createdAt).toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric' 
+              })}
+            </Text>
+            {roadmap.lastUpdated !== roadmap.createdAt && (
+              <View style={styles.updatedIndicator}>
+                <Ionicons name="time-outline" size={12} color={theme.textSecondary} />
+                <Text style={[styles.updatedText, { color: theme.textSecondary }]}>Updated</Text>
+              </View>
+            )}
+          </View>
+        </View>
+        
+        <TouchableOpacity
+          onPress={onDelete}
+          style={[styles.enhancedDeleteButton, { backgroundColor: theme.error + '15' }]}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="trash-outline" size={16} color={theme.error} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Progress Section */}
+      <View style={styles.enhancedProgressSection}>
+        <View style={styles.progressLabelRow}>
+          <Text style={[styles.progressLabel, { color: theme.textSecondary }]}>
+            Progress
+          </Text>
+          <Text style={[styles.enhancedProgressText, { color: getProgressColor(roadmap.progress || 0) }]}>
+            {Math.round(roadmap.progress || 0)}%
+          </Text>
+        </View>
+        
+        <View style={[styles.enhancedProgressBar, { backgroundColor: theme.border }]}>
+          <LinearGradient
+            colors={[getProgressColor(roadmap.progress || 0), getProgressColor(roadmap.progress || 0) + '80']}
+            style={[
+              styles.enhancedProgressFill,
+              { width: `${roadmap.progress || 0}%` }
+            ]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+          />
+        </View>
+      </View>
+
+      {/* Stats Section */}
+      <View style={styles.enhancedStatsSection}>
+        <View style={[styles.enhancedStatItem, { backgroundColor: theme.primary + '10' }]}>
+          <Ionicons name="list" size={16} color={theme.primary} />
+          <Text style={[styles.enhancedStatText, { color: theme.text }]}>
+            {roadmap.steps?.length || 0}
+          </Text>
+          <Text style={[styles.enhancedStatLabel, { color: theme.textSecondary }]}>
+            Steps
+          </Text>
+        </View>
+        
+        <View style={[styles.enhancedStatItem, { backgroundColor: theme.success + '10' }]}>
+          <Ionicons name="checkmark-circle" size={16} color={theme.success} />
+          <Text style={[styles.enhancedStatText, { color: theme.text }]}>
+            {roadmap.steps?.filter(s => s.done).length || 0}
+          </Text>
+          <Text style={[styles.enhancedStatLabel, { color: theme.textSecondary }]}>
+            Done
+          </Text>
+        </View>
+        
+        <View style={[styles.enhancedStatItem, { backgroundColor: theme.accent + '10' }]}>
+          <Ionicons name="time" size={16} color={theme.accent} />
+          <Text style={[styles.enhancedStatText, { color: theme.text }]}>
+            {roadmap.steps?.filter(s => !s.done).length || 0}
+          </Text>
+          <Text style={[styles.enhancedStatLabel, { color: theme.textSecondary }]}>
+            Left
+          </Text>
+        </View>
+      </View>
+
+      {/* Action Indicator */}
+      <View style={styles.cardActionIndicator}>
+        <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+      </View>
+    </TouchableOpacity>
+  </Animated.View>
+);
+
+// Enhanced Step Card Component
+const renderEnhancedStepCard = (step, index) => {
+  const isExpanded = expandedSteps.has(index);
+  const hasCode = step.details && step.details.includes('Example:');
+
+  return (
+    <Animated.View
+      key={step.id}
+      style={[
+        styles.enhancedStepCard,
+        {
+          backgroundColor: theme.surface,
+          borderLeftColor: step.done ? theme.success : theme.primary,
+          opacity: fadeAnim,
+          transform: [{ 
+            translateY: slideAnim.interpolate({
+              inputRange: [0, 30],
+              outputRange: [0, (index * 5)],
+            })
+          }],
+        },
+      ]}
+    >
+      {/* Step Header */}
+      <View style={styles.enhancedStepHeader}>
+        <TouchableOpacity
+          onPress={() => toggleStep(index)}
+          style={[
+            styles.enhancedCheckbox,
+            {
+              backgroundColor: step.done ? theme.success : 'transparent',
+              borderColor: step.done ? theme.success : theme.border,
+            },
+          ]}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          {step.done && (
+            <Ionicons name="checkmark" size={16} color="#fff" />
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => toggleExpanded(index)}
+          style={styles.enhancedStepTitleContainer}
+          activeOpacity={0.8}
+        >
+          <View style={styles.stepTitleRow}>
+            <Text
+              style={[
+                styles.enhancedStepTitle,
+                {
+                  color: step.done ? theme.textSecondary : theme.text,
+                  textDecorationLine: step.done ? 'line-through' : 'none',
+                },
+              ]}
+              numberOfLines={isExpanded ? undefined : 2}
+            >
+              {step.title}
+            </Text>
+            <View style={styles.stepActions}>
+              {hasCode && (
+                <View style={[styles.codeIndicator, { backgroundColor: theme.accent + '20' }]}>
+                  <Ionicons name="code" size={12} color={theme.accent} />
+                </View>
+              )}
               <Ionicons
-                name="map-outline"
-                size={64}
+                name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                size={20}
                 color={theme.textSecondary}
               />
             </View>
-            <Text style={styles.emptyTitle}>
-              {roadmaps.length === 0
-                ? "No roadmaps yet"
-                : "No matching roadmaps"}
+          </View>
+          
+          {step.meta?.estimatedHours && (
+            <Text style={[styles.stepDuration, { color: theme.textSecondary }]}>
+              ⏱️ {step.meta.estimatedHours}
             </Text>
-            <Text style={styles.emptyText}>
-              {roadmaps.length === 0
-                ? "Create your first roadmap to start tracking your journey and achieving your goals step by step."
-                : "Try adjusting your search or filter criteria to find what you're looking for."}
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Expanded Content */}
+      {isExpanded && (
+        <Animated.View style={styles.enhancedStepContent}>
+          {step.details && (
+            <View style={styles.enhancedDetailsContainer}>
+              <Text style={[styles.enhancedDetailsText, { color: theme.text }]}>
+                {step.details.split('Example:')[0].trim()}
+              </Text>
+              
+              {hasCode && (
+                <View style={styles.enhancedCodeContainer}>
+                  <View style={styles.enhancedCodeHeader}>
+                    <View style={styles.codeHeaderLeft}>
+                      <Ionicons name="code-slash" size={16} color={theme.accent} />
+                      <Text style={[styles.enhancedCodeLabel, { color: theme.text }]}>
+                        Code Example
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const codeExample = step.details.split('Example:')[1]?.trim() || '';
+                        copyCode(codeExample);
+                      }}
+                      style={[styles.enhancedCopyButton, { backgroundColor: theme.primary + '15' }]}
+                    >
+                      <Ionicons name="copy-outline" size={14} color={theme.primary} />
+                      <Text style={[styles.enhancedCopyButtonText, { color: theme.primary }]}>
+                        Copy
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <TouchableOpacity
+                    onPress={() => {
+                      const codeExample = step.details.split('Example:')[1]?.trim() || '';
+                      showCodeModal(codeExample);
+                    }}
+                    style={[styles.enhancedCodePreview, { backgroundColor: theme.background }]}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.enhancedCodeText, { color: theme.text }]} numberOfLines={6}>
+                      {step.details.split('Example:')[1]?.trim() || ''}
+                    </Text>
+                    <View style={styles.enhancedExpandCodeButton}>
+                      <Feather name="maximize-2" size={14} color={theme.textSecondary} />
+                      <Text style={[styles.expandCodeText, { color: theme.textSecondary }]}>
+                        Expand
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Resources */}
+              {step.meta?.resources && step.meta.resources.length > 0 && (
+                <View style={styles.resourcesContainer}>
+                  <Text style={[styles.resourcesTitle, { color: theme.text }]}>
+                    📚 Recommended Resources
+                  </Text>
+                  {step.meta.resources.slice(0, 3).map((resource, idx) => (
+                    <Text key={idx} style={[styles.resourceItem, { color: theme.primary }]} numberOfLines={1}>
+                      • {resource}
+                    </Text>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Personal Notes */}
+          <View style={styles.enhancedNotesContainer}>
+            <Text style={[styles.enhancedNotesLabel, { color: theme.text }]}>
+              📝 Personal Notes
             </Text>
+            <TextInput
+              style={[
+                styles.enhancedNotesInput,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.background,
+                  borderColor: theme.border,
+                },
+              ]}
+              placeholder="Add your thoughts, insights, or questions here..."
+              placeholderTextColor={theme.textSecondary}
+              value={step.notes}
+              onChangeText={(text) => updateNotes(index, text)}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              selectionColor={theme.primary}
+            />
           </View>
-        )}
-      </ScrollView>
-
-      {/* Add Roadmap Modal */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.mobileModalOverlay}>
-          <View style={styles.mobileModalContainer}>
-            {/* Modal Header */}
-            <View style={styles.mobileModalHeader}>
-              <Text style={styles.modalTitle}>Create New Roadmap</Text>
-              <TouchableOpacity
-                onPress={() => setModalVisible(false)}
-                style={styles.modalCloseButton}
-              >
-                <Ionicons name="close" size={24} color={theme.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Scrollable Content */}
-            <ScrollView
-              style={styles.mobileModalScrollView}
-              contentContainerStyle={styles.mobileModalContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              <Text style={styles.inputLabel}>Title *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter roadmap title"
-                placeholderTextColor={theme.textSecondary}
-                value={newRoadmap.title}
-                onChangeText={(text) =>
-                  setNewRoadmap({ ...newRoadmap, title: text })
-                }
-              />
-
-              <Text style={styles.inputLabel}>Category</Text>
-              <View style={styles.categorySelector}>
-                {categories.slice(1).map((category) => (
-                  <TouchableOpacity
-                    key={category}
-                    style={[
-                      styles.categoryOption,
-                      newRoadmap.category === category &&
-                        styles.categoryOptionSelected,
-                    ]}
-                    onPress={() => setNewRoadmap({ ...newRoadmap, category })}
-                  >
-                    <Text
-                      style={[
-                        styles.categoryOptionText,
-                        newRoadmap.category === category &&
-                          styles.categoryOptionTextSelected,
-                      ]}
-                    >
-                      {category}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.inputLabel}>Priority</Text>
-              <View style={styles.prioritySelector}>
-                {priorities.map((priority) => (
-                  <TouchableOpacity
-                    key={priority}
-                    style={[
-                      styles.priorityOption,
-                      newRoadmap.priority === priority &&
-                        styles.priorityOptionSelected,
-                    ]}
-                    onPress={() => setNewRoadmap({ ...newRoadmap, priority })}
-                  >
-                    <Text
-                      style={[
-                        styles.priorityOptionText,
-                        newRoadmap.priority === priority && {
-                          color: theme.primary,
-                        },
-                      ]}
-                    >
-                      {priority}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <Text style={styles.inputLabel}>Description</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Describe your roadmap goals and objectives"
-                placeholderTextColor={theme.textSecondary}
-                value={newRoadmap.description}
-                onChangeText={(text) =>
-                  setNewRoadmap({ ...newRoadmap, description: text })
-                }
-                multiline
-              />
-
-              <Text style={styles.inputLabel}>Target Date (Optional)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={theme.textSecondary}
-                value={newRoadmap.targetDate}
-                onChangeText={(text) =>
-                  setNewRoadmap({ ...newRoadmap, targetDate: text })
-                }
-              />
-            </ScrollView>
-
-            {/* Fixed Bottom Buttons */}
-            <View style={styles.mobileModalButtons}>
-              <Button
-                title="Cancel"
-                onPress={() => setModalVisible(false)}
-                variant="outline"
-                style={styles.mobileModalButton}
-              />
-              <Button
-                title="Create Roadmap"
-                onPress={addRoadmap}
-                style={styles.mobileModalButton}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Add Step Modal */}
-      <Modal
-        visible={stepModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setStepModalVisible(false)}
-      >
-        <View style={styles.mobileModalOverlay}>
-          <View style={styles.mobileModalContainer}>
-            {/* Modal Header */}
-            <View style={styles.mobileModalHeader}>
-              <Text style={styles.modalTitle}>Add New Step</Text>
-              <TouchableOpacity
-                onPress={() => setStepModalVisible(false)}
-                style={styles.modalCloseButton}
-              >
-                <Ionicons name="close" size={24} color={theme.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Scrollable Content */}
-            <ScrollView
-              style={styles.mobileModalScrollView}
-              contentContainerStyle={styles.mobileModalContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              <Text style={styles.inputLabel}>Step Title *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter step title"
-                placeholderTextColor={theme.textSecondary}
-                value={newStep.title}
-                onChangeText={(text) => setNewStep({ ...newStep, title: text })}
-              />
-
-              <Text style={styles.inputLabel}>Description</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Describe what needs to be done"
-                placeholderTextColor={theme.textSecondary}
-                value={newStep.description}
-                onChangeText={(text) =>
-                  setNewStep({ ...newStep, description: text })
-                }
-                multiline
-              />
-
-              <Text style={styles.inputLabel}>Estimated Hours</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="How many hours will this take?"
-                placeholderTextColor={theme.textSecondary}
-                value={newStep.estimatedHours}
-                onChangeText={(text) =>
-                  setNewStep({ ...newStep, estimatedHours: text })
-                }
-                keyboardType="numeric"
-              />
-
-              <Text style={styles.inputLabel}>Resources/Links</Text>
-              <TextInput
-                style={[styles.input, styles.textArea]}
-                placeholder="Add helpful resources, links, or notes"
-                placeholderTextColor={theme.textSecondary}
-                value={newStep.resources}
-                onChangeText={(text) =>
-                  setNewStep({ ...newStep, resources: text })
-                }
-                multiline
-              />
-
-              <Text style={styles.inputLabel}>Priority</Text>
-              <View style={styles.prioritySelector}>
-                {priorities.map((priority) => (
-                  <TouchableOpacity
-                    key={priority}
-                    style={[
-                      styles.priorityOption,
-                      newStep.priority === priority &&
-                        styles.priorityOptionSelected,
-                    ]}
-                    onPress={() => setNewStep({ ...newStep, priority })}
-                  >
-                    <Text
-                      style={[
-                        styles.priorityOptionText,
-                        newStep.priority === priority && {
-                          color: theme.primary,
-                        },
-                      ]}
-                    >
-                      {priority}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </ScrollView>
-
-            {/* Fixed Bottom Buttons */}
-            <View style={styles.mobileModalButtons}>
-              <Button
-                title="Cancel"
-                onPress={() => setStepModalVisible(false)}
-                variant="outline"
-                style={styles.mobileModalButton}
-              />
-              <Button
-                title="Add Step"
-                onPress={addStep}
-                style={styles.mobileModalButton}
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+        </Animated.View>
+      )}
+    </Animated.View>
   );
 };
+
+// Enhanced Current Roadmap View
+const renderEnhancedCurrentRoadmap = () => {
+  if (!currentRoadmap) return null;
+
+  return (
+    <View style={styles.enhancedCurrentRoadmapContainer}>
+      {/* Enhanced Header */}
+      <LinearGradient
+        colors={[theme.primary + '10', theme.background]}
+        style={styles.enhancedRoadmapHeader}
+      >
+        <SafeAreaView style={styles.headerSafeArea}>
+          <View style={styles.enhancedHeaderContent}>
+            <TouchableOpacity
+              onPress={() => setCurrentRoadmap(null)}
+              style={[styles.enhancedBackButton, { backgroundColor: theme.surface }]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="arrow-back" size={22} color={theme.text} />
+            </TouchableOpacity>
+            
+            <View style={styles.enhancedHeaderTitleSection}>
+              <Text style={[styles.enhancedHeaderTitle, { color: theme.text }]} numberOfLines={2}>
+                {currentRoadmap.topic}
+              </Text>
+              <View style={styles.enhancedHeaderMeta}>
+                <Text style={[styles.enhancedHeaderSubtitle, { color: theme.textSecondary }]}>
+                  {currentRoadmap.steps?.length || 0} steps
+                </Text>
+                <View style={styles.headerDivider} />
+                <Text style={[styles.enhancedHeaderSubtitle, { color: getProgressColor(currentRoadmap.progress || 0) }]}>
+                  {Math.round(currentRoadmap.progress || 0)}% complete
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Progress Bar */}
+          <View style={styles.enhancedHeaderProgressContainer}>
+            <View style={[styles.enhancedHeaderProgressBar, { backgroundColor: theme.border }]}>
+              <LinearGradient
+                colors={[getProgressColor(currentRoadmap.progress || 0), getProgressColor(currentRoadmap.progress || 0) + '80']}
+                style={[
+                  styles.enhancedHeaderProgressFill,
+                  { width: `${currentRoadmap.progress || 0}%` }
+                ]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              />
+            </View>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+
+      {/* Steps List */}
+      <ScrollView
+        style={styles.enhancedStepsContainer}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.primary]}
+            tintColor={theme.primary}
+            progressBackgroundColor={theme.surface}
+          />
+        }
+        contentContainerStyle={styles.stepsScrollContent}
+      >
+        {currentRoadmap.steps?.map((step, index) => renderEnhancedStepCard(step, index))}
+      </ScrollView>
+    </View>
+  );
+};
+
+return (
+  <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <StatusBar
+      barStyle={isDark ? 'light-content' : 'dark-content'}
+      backgroundColor={theme.background}
+      translucent={false}
+    />
+
+    {!currentRoadmap && renderEnhancedSearchHeader()}
+
+    {currentRoadmap ? renderEnhancedCurrentRoadmap() : renderEnhancedRoadmapsList()}
+
+    {/* Loading Overlay */}
+    {loading && (
+      <LoadingSpinner message="🚀 Generating your personalized roadmap..." />
+    )}
+
+    {/* Enhanced Code Modal */}
+    <Modal
+      visible={codeModalVisible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={() => setCodeModalVisible(false)}
+    >
+      <View style={[styles.enhancedCodeModal, { backgroundColor: theme.background }]}>
+        <LinearGradient
+          colors={[theme.primary + '10', theme.background]}
+          style={styles.enhancedCodeModalHeader}
+        >
+          <SafeAreaView style={styles.modalHeaderSafeArea}>
+            <View style={styles.enhancedCodeModalHeaderContent}>
+              <Text style={[styles.enhancedCodeModalTitle, { color: theme.text }]}>
+                📄 Code Example
+              </Text>
+              <View style={styles.enhancedCodeModalActions}>
+                <TouchableOpacity
+                  onPress={() => copyCode(selectedCode)}
+                  style={[styles.enhancedCodeModalButton, { backgroundColor: theme.primary }]}
+                >
+                  <Ionicons name="copy-outline" size={16} color="#fff" />
+                  <Text style={styles.enhancedCodeModalButtonText}>Copy</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setCodeModalVisible(false)}
+                  style={[styles.enhancedCodeModalButton, { backgroundColor: theme.textSecondary }]}
+                >
+                  <Ionicons name="close" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </SafeAreaView>
+        </LinearGradient>
+        
+        <ScrollView style={styles.enhancedCodeModalContent}>
+          <View style={[styles.enhancedCodeBlock, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.enhancedCodeBlockText, { color: theme.text }]}>
+              {selectedCode}
+            </Text>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+
+    {/* Enhanced Toast Message */}
+    {toastMessage && (
+      <Animated.View 
+        style={[
+          styles.enhancedToastContainer,
+          { opacity: fadeAnim }
+        ]}
+      >
+        <LinearGradient
+          colors={toastMessage.type === 'success' ? [theme.success, theme.success + 'E0'] : [theme.error, theme.error + 'E0']}
+          style={styles.enhancedToast}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <Text style={styles.enhancedToastText}>{toastMessage.text || toastMessage}</Text>
+        </LinearGradient>
+      </Animated.View>
+    )}
+  </View>
+);
+};
+
+const styles = StyleSheet.create({
+  // Main Container
+  container: {
+    flex: 1,
+  },
+
+  // Enhanced Header Styles
+  headerContainer: {
+    paddingBottom: 20,
+  },
+  headerGradient: {
+    paddingBottom: 10,
+  },
+  safeArea: {
+    paddingHorizontal: 20,
+  },
+  headerContent: {
+    paddingTop: 10,
+  },
+  titleSection: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  mainTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+    opacity: 0.8,
+  },
+
+  // Enhanced Search Styles
+  searchSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 20,
+  },
+  searchInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  clearButton: {
+    padding: 4,
+  },
+  generateBtn: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  generateBtnDisabled: {
+    opacity: 0.6,
+  },
+  generateBtnGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    gap: 8,
+  },
+  generateBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+
+  // Enhanced Suggestions Styles
+  suggestionsSection: {
+    marginTop: 8,
+  },
+  suggestionsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 16,
+  },
+  topicsContainer: {
+    paddingRight: 20,
+    gap: 12,
+  },
+  topicCard: {
+    width: width * 0.38,
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  topicIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  topicTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+
+  // Enhanced Main Content
+  mainContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  listHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingTop: 20,
+  },
+  listTitleSection: {
+    flex: 1,
+  },
+  listTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  listSubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    opacity: 0.8,
+  },
+  toggleButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+
+  // Enhanced Empty State
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  emptyStateContent: {
+    alignItems: 'center',
+    padding: 32,
+    borderRadius: 24,
+    maxWidth: width - 80,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 24,
+    opacity: 0.8,
+    marginBottom: 24,
+  },
+  emptyActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    gap: 8,
+  },
+  emptyActionText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  // Enhanced Roadmap Cards
+  roadmapsList: {
+    paddingBottom: 100,
+  },
+  enhancedRoadmapCard: {
+    borderRadius: 20,
+    marginBottom: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  roadmapCardTouchable: {
+    padding: 20,
+  },
+  enhancedCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  cardTitleSection: {
+    flex: 1,
+  },
+  enhancedCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+    lineHeight: 24,
+  },
+  cardMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cardDate: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  updatedIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  updatedText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  enhancedDeleteButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Enhanced Progress Section
+  enhancedProgressSection: {
+    marginBottom: 16,
+  },
+  progressLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  enhancedProgressText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  enhancedProgressBar: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  enhancedProgressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+
+  // Enhanced Stats Section
+  enhancedStatsSection: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 8,
+  },
+  enhancedStatItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    gap: 4,
+  },
+  enhancedStatText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  enhancedStatLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  cardActionIndicator: {
+    alignItems: 'center',
+    marginTop: 8,
+  },
+
+  // Enhanced Current Roadmap
+  enhancedCurrentRoadmapContainer: {
+    flex: 1,
+  },
+  enhancedRoadmapHeader: {
+    paddingBottom: 16,
+  },
+  headerSafeArea: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  enhancedHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  enhancedBackButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  enhancedHeaderTitleSection: {
+    flex: 1,
+  },
+  enhancedHeaderTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 4,
+    lineHeight: 28,
+  },
+  enhancedHeaderMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  enhancedHeaderSubtitle: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  headerDivider: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#94a3b8',
+  },
+  enhancedHeaderProgressContainer: {
+    marginTop: 8,
+  },
+  enhancedHeaderProgressBar: {
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  enhancedHeaderProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+
+  // Enhanced Steps
+  enhancedStepsContainer: {
+    flex: 1,
+  },
+  stepsScrollContent: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+  enhancedStepCard: {
+    borderRadius: 16,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  enhancedStepHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    padding: 16,
+    gap: 16,
+  },
+  enhancedCheckbox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  enhancedStepTitleContainer: {
+    flex: 1,
+  },
+  stepTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  enhancedStepTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 22,
+    marginRight: 12,
+  },
+  stepActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  codeIndicator: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  stepDuration: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+
+  // Enhanced Step Content
+  enhancedStepContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  enhancedDetailsContainer: {
+    marginBottom: 16,
+  },
+  enhancedDetailsText: {
+    fontSize: 15,
+    lineHeight: 24,
+    marginBottom: 16,
+  },
+
+  // Enhanced Code Container
+  enhancedCodeContainer: {
+    marginTop: 16,
+  },
+  enhancedCodeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  codeHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  enhancedCodeLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  enhancedCopyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  enhancedCopyButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  enhancedCodePreview: {
+    borderRadius: 12,
+    padding: 16,
+    position: 'relative',
+  },
+  enhancedCodeText: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  enhancedExpandCodeButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.1)',
+  },
+  expandCodeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+
+  // Resources
+  resourcesContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  resourcesTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  resourceItem: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+
+  // Enhanced Notes
+  enhancedNotesContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  enhancedNotesLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  enhancedNotesInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 15,
+    lineHeight: 22,
+    minHeight: 100,
+  },
+
+  // Enhanced Code Modal
+  enhancedCodeModal: {
+    flex: 1,
+  },
+  enhancedCodeModalHeader: {
+    paddingBottom: 16,
+  },
+  modalHeaderSafeArea: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  enhancedCodeModalHeaderContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  enhancedCodeModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  enhancedCodeModalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  enhancedCodeModalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 6,
+  },
+  enhancedCodeModalButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  enhancedCodeModalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  enhancedCodeBlock: {
+    borderRadius: 16,
+    padding: 20,
+  },
+  enhancedCodeBlockText: {
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 14,
+    lineHeight: 22,
+  },
+
+  // Enhanced Toast
+  enhancedToastContainer: {
+    position: 'absolute',
+    top: 100,
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+    zIndex: 1001,
+  },
+  enhancedToast: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  enhancedToastText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+});
 
 export default RoadmapScreen;
