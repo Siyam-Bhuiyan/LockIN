@@ -22,6 +22,7 @@ const CPTrackerScreen = () => {
   const [problems, setProblems] = useState([]);
   const [filteredProblems, setFilteredProblems] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
   const [filters, setFilters] = useState({
     platform: "All",
     status: "All",
@@ -166,85 +167,88 @@ const CPTrackerScreen = () => {
   const ProblemCard = ({ problem }) => (
     <Card style={styles.problemCard}>
       <View style={styles.problemHeader}>
-        <View style={styles.problemInfo}>
-          <Text style={[styles.problemName, { color: theme.text }]}>
+        <View style={styles.problemTitleRow}>
+          <Text
+            style={[styles.problemName, { color: theme.text }]}
+            numberOfLines={1}
+          >
             {problem.name}
           </Text>
-          <View style={styles.problemMeta}>
+          <TouchableOpacity
+            onPress={() => deleteProblem(problem.id)}
+            style={styles.deleteButton}
+          >
+            <Ionicons name="trash-outline" size={18} color={theme.error} />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.problemMeta}>
+          <View style={styles.tagsRow}>
             <View
-              style={[styles.platformTag, { backgroundColor: theme.primary }]}
+              style={[
+                styles.platformTag,
+                { backgroundColor: theme.primary + "20" },
+              ]}
             >
-              <Text style={styles.tagText}>{problem.platform}</Text>
+              <Text style={[styles.tagText, { color: theme.primary }]}>
+                {problem.platform}
+              </Text>
             </View>
             <View
               style={[
                 styles.difficultyTag,
-                { backgroundColor: getDifficultyColor(problem.difficulty) },
-              ]}
-            >
-              <Text style={styles.tagText}>{problem.difficulty}</Text>
-            </View>
-          </View>
-        </View>
-        <TouchableOpacity
-          onPress={() => deleteProblem(problem.id)}
-          style={styles.deleteButton}
-        >
-          <Ionicons name="trash-outline" size={20} color={theme.error} />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.statusContainer}>
-        <Text style={[styles.statusLabel, { color: theme.textSecondary }]}>
-          Status:
-        </Text>
-        <View style={styles.statusButtons}>
-          {statuses.slice(1).map((status) => (
-            <TouchableOpacity
-              key={status}
-              style={[
-                styles.statusButton,
                 {
                   backgroundColor:
-                    problem.status === status
-                      ? getStatusColor(status)
-                      : theme.border,
+                    getDifficultyColor(problem.difficulty) + "20",
                 },
               ]}
-              onPress={() => updateProblemStatus(problem.id, status)}
             >
               <Text
                 style={[
-                  styles.statusButtonText,
-                  { color: problem.status === status ? "#ffffff" : theme.text },
+                  styles.tagText,
+                  { color: getDifficultyColor(problem.difficulty) },
                 ]}
               >
-                {status}
+                {problem.difficulty}
               </Text>
-            </TouchableOpacity>
-          ))}
+            </View>
+            <View
+              style={[
+                styles.statusTag,
+                { backgroundColor: getStatusColor(problem.status) + "20" },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.tagText,
+                  { color: getStatusColor(problem.status) },
+                ]}
+              >
+                {problem.status}
+              </Text>
+            </View>
+          </View>
         </View>
       </View>
 
-      {problem.tags && (
-        <View style={styles.tagsContainer}>
-          <Text style={[styles.tagsLabel, { color: theme.textSecondary }]}>
-            Tags:
-          </Text>
-          <Text style={[styles.tagsText, { color: theme.text }]}>
-            {problem.tags}
-          </Text>
-        </View>
-      )}
-
-      {problem.notes && (
-        <View style={styles.notesContainer}>
-          <Text style={[styles.notesLabel, { color: theme.textSecondary }]}>
-            Notes:
-          </Text>
-          <Text style={[styles.notesText, { color: theme.text }]}>
-            {problem.notes}
-          </Text>
+      {(problem.tags || problem.notes) && (
+        <View style={styles.problemDetails}>
+          {problem.tags && (
+            <Text
+              style={[styles.detailText, { color: theme.textSecondary }]}
+              numberOfLines={1}
+            >
+              🏷️ {problem.tags}
+            </Text>
+          )}
+          {problem.notes && (
+            <Text
+              style={[styles.detailText, { color: theme.textSecondary }]}
+              numberOfLines={2}
+            >
+              📝 {problem.notes}
+            </Text>
+          )}
         </View>
       )}
 
@@ -254,7 +258,7 @@ const CPTrackerScreen = () => {
             style={[styles.actionButton, { backgroundColor: theme.primary }]}
             onPress={() => openLink(problem.link)}
           >
-            <Ionicons name="link-outline" size={16} color="#ffffff" />
+            <Ionicons name="link-outline" size={14} color="#ffffff" />
             <Text style={styles.actionText}>Open</Text>
           </TouchableOpacity>
         )}
@@ -276,16 +280,22 @@ const CPTrackerScreen = () => {
         >
           <Ionicons
             name={
-              problem.status === "Solved"
-                ? "checkmark-outline"
-                : "close-outline"
+              problem.status === "Solved" ? "checkmark-outline" : "play-outline"
             }
-            size={16}
+            size={14}
             color="#ffffff"
           />
           <Text style={styles.actionText}>
-            {problem.status === "Solved" ? "Mark Unsolved" : "Mark Solved"}
+            {problem.status === "Solved" ? "Solved" : "Solve"}
           </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionButton, { backgroundColor: theme.warning }]}
+          onPress={() => updateProblemStatus(problem.id, "To Revisit")}
+        >
+          <Ionicons name="bookmark-outline" size={14} color="#ffffff" />
+          <Text style={styles.actionText}>Revisit</Text>
         </TouchableOpacity>
       </View>
     </Card>
@@ -293,10 +303,12 @@ const CPTrackerScreen = () => {
 
   const FilterChip = ({ label, value, options, onSelect }) => (
     <View style={styles.filterGroup}>
-      <Text style={[styles.filterLabel, { color: theme.textSecondary }]}>
-        {label}:
-      </Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <Text style={[styles.filterLabel, { color: theme.text }]}>{label}</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterScrollView}
+      >
         {options.map((option) => (
           <TouchableOpacity
             key={option}
@@ -304,8 +316,8 @@ const CPTrackerScreen = () => {
               styles.filterChip,
               {
                 backgroundColor:
-                  value === option ? theme.accent : "transparent",
-                borderColor: theme.accent,
+                  value === option ? theme.accent : theme.background,
+                borderColor: value === option ? theme.accent : theme.border,
               },
             ]}
             onPress={() => onSelect(option)}
@@ -313,7 +325,7 @@ const CPTrackerScreen = () => {
             <Text
               style={[
                 styles.filterChipText,
-                { color: value === option ? "#ffffff" : theme.accent },
+                { color: value === option ? "#ffffff" : theme.text },
               ]}
             >
               {option}
@@ -322,6 +334,73 @@ const CPTrackerScreen = () => {
         ))}
       </ScrollView>
     </View>
+  );
+
+  const FilterModal = () => (
+    <Modal
+      isVisible={filterModalVisible}
+      onBackdropPress={() => setFilterModalVisible(false)}
+      animationIn="slideInUp"
+      animationOut="slideOutDown"
+      backdropOpacity={0.5}
+    >
+      <View style={styles.filterModalContent}>
+        <View style={styles.filterModalHeader}>
+          <Text style={[styles.filterModalTitle, { color: theme.text }]}>
+            Filter Problems
+          </Text>
+          <TouchableOpacity
+            onPress={() => setFilterModalVisible(false)}
+            style={styles.filterModalClose}
+          >
+            <Ionicons name="close" size={24} color={theme.text} />
+          </TouchableOpacity>
+        </View>
+
+        <FilterChip
+          label="Platform"
+          value={filters.platform}
+          options={platforms}
+          onSelect={(option) => setFilters({ ...filters, platform: option })}
+        />
+        <FilterChip
+          label="Status"
+          value={filters.status}
+          options={statuses}
+          onSelect={(option) => setFilters({ ...filters, status: option })}
+        />
+        <FilterChip
+          label="Difficulty"
+          value={filters.difficulty}
+          options={difficulties}
+          onSelect={(option) => setFilters({ ...filters, difficulty: option })}
+        />
+
+        <View style={styles.filterModalActions}>
+          <TouchableOpacity
+            style={[styles.filterResetButton, { borderColor: theme.border }]}
+            onPress={() =>
+              setFilters({ platform: "All", status: "All", difficulty: "All" })
+            }
+          >
+            <Text
+              style={[styles.filterResetText, { color: theme.textSecondary }]}
+            >
+              Reset Filters
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterApplyButton,
+              { backgroundColor: theme.primary },
+            ]}
+            onPress={() => setFilterModalVisible(false)}
+          >
+            <Text style={styles.filterApplyText}>Apply Filters</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
   );
 
   const styles = StyleSheet.create({
@@ -341,33 +420,113 @@ const CPTrackerScreen = () => {
       fontWeight: "bold",
       color: theme.text,
     },
+    headerActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    filterButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+      position: "relative",
+    },
+    filterButtonText: {
+      fontSize: 14,
+      fontWeight: "600",
+      marginLeft: 6,
+    },
+    filterIndicator: {
+      position: "absolute",
+      top: -2,
+      right: -2,
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
     addButton: {
       backgroundColor: theme.success,
       borderRadius: 12,
-      padding: 12,
+      padding: 10,
     },
     filtersContainer: {
       paddingHorizontal: 20,
       paddingBottom: 16,
     },
     filterGroup: {
-      marginBottom: 12,
+      marginBottom: 16,
     },
     filterLabel: {
-      fontSize: 14,
+      fontSize: 16,
       fontWeight: "600",
-      marginBottom: 8,
+      marginBottom: 12,
+    },
+    filterScrollView: {
+      flexGrow: 0,
     },
     filterChip: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      marginRight: 8,
-      borderRadius: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      marginRight: 12,
+      borderRadius: 20,
       borderWidth: 1,
     },
     filterChipText: {
-      fontSize: 12,
+      fontSize: 14,
       fontWeight: "600",
+    },
+    // Filter Modal Styles
+    filterModalContent: {
+      backgroundColor: theme.surface,
+      borderRadius: 20,
+      padding: 20,
+      marginHorizontal: 20,
+      maxHeight: "70%",
+    },
+    filterModalHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 24,
+    },
+    filterModalTitle: {
+      fontSize: 20,
+      fontWeight: "700",
+    },
+    filterModalClose: {
+      padding: 4,
+    },
+    filterModalActions: {
+      flexDirection: "row",
+      gap: 12,
+      marginTop: 24,
+    },
+    filterResetButton: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      alignItems: "center",
+    },
+    filterResetText: {
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    filterApplyButton: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: 12,
+      alignItems: "center",
+    },
+    filterApplyText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: "#ffffff",
     },
     statsContainer: {
       paddingHorizontal: 20,
@@ -395,87 +554,60 @@ const CPTrackerScreen = () => {
       paddingHorizontal: 20,
     },
     problemCard: {
-      marginBottom: 16,
+      marginBottom: 12,
     },
     problemHeader: {
+      marginBottom: 12,
+    },
+    problemTitleRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "flex-start",
-      marginBottom: 12,
-    },
-    problemInfo: {
-      flex: 1,
+      marginBottom: 10,
     },
     problemName: {
       fontSize: 16,
-      fontWeight: "bold",
-      marginBottom: 8,
+      fontWeight: "700",
+      flex: 1,
+      marginRight: 12,
     },
     problemMeta: {
+      marginBottom: 8,
+    },
+    tagsRow: {
       flexDirection: "row",
-      gap: 8,
+      flexWrap: "wrap",
+      gap: 6,
     },
     platformTag: {
       paddingHorizontal: 8,
       paddingVertical: 4,
-      borderRadius: 8,
+      borderRadius: 6,
     },
     difficultyTag: {
       paddingHorizontal: 8,
       paddingVertical: 4,
-      borderRadius: 8,
+      borderRadius: 6,
+    },
+    statusTag: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
     },
     tagText: {
-      fontSize: 12,
-      color: "#ffffff",
+      fontSize: 11,
       fontWeight: "600",
     },
     deleteButton: {
       padding: 4,
     },
-    statusContainer: {
+    problemDetails: {
       marginBottom: 12,
+      gap: 4,
     },
-    statusLabel: {
-      fontSize: 14,
-      fontWeight: "600",
-      marginBottom: 8,
-    },
-    statusButtons: {
-      flexDirection: "row",
-      gap: 8,
-    },
-    statusButton: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 8,
-    },
-    statusButtonText: {
+    detailText: {
       fontSize: 12,
-      fontWeight: "600",
-    },
-    tagsContainer: {
-      marginBottom: 8,
-    },
-    tagsLabel: {
-      fontSize: 12,
-      fontWeight: "600",
-    },
-    tagsText: {
-      fontSize: 14,
-      marginTop: 2,
-    },
-    notesContainer: {
-      marginBottom: 12,
-    },
-    notesLabel: {
-      fontSize: 12,
-      fontWeight: "600",
-    },
-    notesText: {
-      fontSize: 14,
-      marginTop: 2,
-      lineHeight: 18,
+      lineHeight: 16,
     },
     problemActions: {
       flexDirection: "row",
@@ -486,14 +618,14 @@ const CPTrackerScreen = () => {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      paddingVertical: 10,
+      paddingVertical: 8,
       borderRadius: 8,
+      gap: 4,
     },
     actionText: {
-      fontSize: 14,
+      fontSize: 12,
       fontWeight: "600",
       color: "#ffffff",
-      marginLeft: 4,
     },
     emptyState: {
       alignItems: "center",
@@ -582,12 +714,33 @@ const CPTrackerScreen = () => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>🏆 CP Tracker</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setModalVisible(true)}
-        >
-          <Ionicons name="add" size={24} color="#ffffff" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => setFilterModalVisible(true)}
+          >
+            <Ionicons name="filter-outline" size={20} color={theme.text} />
+            <Text style={[styles.filterButtonText, { color: theme.text }]}>
+              Filter
+            </Text>
+            {(filters.platform !== "All" ||
+              filters.status !== "All" ||
+              filters.difficulty !== "All") && (
+              <View
+                style={[
+                  styles.filterIndicator,
+                  { backgroundColor: theme.accent },
+                ]}
+              />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => setModalVisible(true)}
+          >
+            <Ionicons name="add" size={20} color="#ffffff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.statsContainer}>
@@ -617,27 +770,6 @@ const CPTrackerScreen = () => {
         </View>
       </View>
 
-      <View style={styles.filtersContainer}>
-        <FilterChip
-          label="Platform"
-          value={filters.platform}
-          options={platforms}
-          onSelect={(option) => setFilters({ ...filters, platform: option })}
-        />
-        <FilterChip
-          label="Status"
-          value={filters.status}
-          options={statuses}
-          onSelect={(option) => setFilters({ ...filters, status: option })}
-        />
-        <FilterChip
-          label="Difficulty"
-          value={filters.difficulty}
-          options={difficulties}
-          onSelect={(option) => setFilters({ ...filters, difficulty: option })}
-        />
-      </View>
-
       <ScrollView style={styles.scrollContainer}>
         {filteredProblems.map((problem) => (
           <ProblemCard key={problem.id} problem={problem} />
@@ -653,6 +785,8 @@ const CPTrackerScreen = () => {
           </View>
         )}
       </ScrollView>
+
+      <FilterModal />
 
       {/* Add Problem Modal */}
       <Modal

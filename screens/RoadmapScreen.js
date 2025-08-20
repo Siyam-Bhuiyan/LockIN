@@ -9,7 +9,6 @@ import {
   Alert,
   ActivityIndicator,
   Dimensions,
-  Animated,
   StatusBar,
   FlatList,
   Modal,
@@ -40,13 +39,9 @@ const RoadmapScreen = () => {
   const [toastMessage, setToastMessage] = useState("");
 
   const searchRef = useRef(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
     loadRoadmaps();
-    startAnimations();
 
     // Cleanup function
     return () => {
@@ -55,27 +50,6 @@ const RoadmapScreen = () => {
       }
     };
   }, []);
-
-  const startAnimations = () => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 100,
-        friction: 8,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
 
   const loadRoadmaps = async () => {
     try {
@@ -291,7 +265,7 @@ const RoadmapScreen = () => {
 
   // Enhanced search header
   const renderSearchHeader = () => (
-    <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
+    <View style={[styles.header, { opacity: 1 }]}>
       <View style={styles.headerTop}>
         <Text style={[styles.title, { color: theme.text }]}>
           🗺️ AI Roadmaps
@@ -363,7 +337,7 @@ const RoadmapScreen = () => {
           )}
         </TouchableOpacity>
       </View>
-    </Animated.View>
+    </View>
   );
 
   // Enhanced Roadmap Card Component
@@ -373,24 +347,13 @@ const RoadmapScreen = () => {
     onSelect,
     onDelete,
     theme,
-    fadeAnim,
-    slideAnim,
     getProgressColor,
   }) => (
-    <Animated.View
+    <View
       style={[
         styles.enhancedRoadmapCard,
         {
           backgroundColor: theme.surface,
-          opacity: fadeAnim,
-          transform: [
-            {
-              translateY: slideAnim.interpolate({
-                inputRange: [0, 30],
-                outputRange: [0, 30 + index * 10],
-              }),
-            },
-          ],
         },
       ]}
     >
@@ -528,7 +491,7 @@ const RoadmapScreen = () => {
           </View>
         </View>
       </TouchableOpacity>
-    </Animated.View>
+    </View>
   );
 
   // Enhanced roadmap list
@@ -536,13 +499,11 @@ const RoadmapScreen = () => {
     <View style={styles.mainContent}>
       {roadmaps.length === 0 ? (
         <View style={styles.emptyStateContainer}>
-          <Animated.View
+          <View
             style={[
               styles.emptyStateContent,
               {
                 backgroundColor: theme.surface,
-                transform: [{ scale: scaleAnim }],
-                opacity: fadeAnim,
               },
             ]}
           >
@@ -571,7 +532,7 @@ const RoadmapScreen = () => {
               <Ionicons name="add" size={20} color="#fff" />
               <Text style={styles.emptyActionText}>Create Roadmap</Text>
             </TouchableOpacity>
-          </Animated.View>
+          </View>
         </View>
       ) : (
         <FlatList
@@ -595,8 +556,6 @@ const RoadmapScreen = () => {
               onSelect={() => setCurrentRoadmap(item)}
               onDelete={() => deleteRoadmap(item.id)}
               theme={theme}
-              fadeAnim={fadeAnim}
-              slideAnim={slideAnim}
               getProgressColor={getProgressColor}
             />
           )}
@@ -611,22 +570,13 @@ const RoadmapScreen = () => {
     const hasCode = step.details && step.details.includes("Example:");
 
     return (
-      <Animated.View
+      <View
         key={step.id}
         style={[
           styles.enhancedStepCard,
           {
             backgroundColor: theme.surface,
             borderLeftColor: step.done ? theme.success : theme.primary,
-            opacity: fadeAnim,
-            transform: [
-              {
-                translateY: slideAnim.interpolate({
-                  inputRange: [0, 30],
-                  outputRange: [0, index * 5],
-                }),
-              },
-            ],
           },
         ]}
       >
@@ -695,7 +645,7 @@ const RoadmapScreen = () => {
 
         {/* Expanded Content */}
         {isExpanded && (
-          <Animated.View style={styles.enhancedStepContent}>
+          <View style={styles.enhancedStepContent}>
             {step.details && (
               <View style={styles.enhancedDetailsContainer}>
                 <Text
@@ -832,9 +782,9 @@ const RoadmapScreen = () => {
                 selectionColor={theme.primary}
               />
             </View>
-          </Animated.View>
+          </View>
         )}
-      </Animated.View>
+      </View>
     );
   };
 
@@ -940,111 +890,114 @@ const RoadmapScreen = () => {
   };
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
-      <StatusBar
-        barStyle={isDark ? "light-content" : "dark-content"}
-        backgroundColor={theme.background}
-        translucent={false}
-      />
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <StatusBar
+          barStyle={isDark ? "light-content" : "dark-content"}
+          backgroundColor={theme.background}
+          translucent={false}
+        />
 
-      {!currentRoadmap && renderSearchHeader()}
+        {!currentRoadmap && renderSearchHeader()}
 
-      {currentRoadmap ? renderCurrentRoadmap() : renderRoadmapsList()}
+        {currentRoadmap ? renderCurrentRoadmap() : renderRoadmapsList()}
 
-      {/* Loading Overlay */}
-      {loading && (
-        <LoadingSpinner message="🚀 Generating your personalized roadmap..." />
-      )}
+        {/* Loading Overlay */}
+        {loading && (
+          <LoadingSpinner message="🚀 Generating your personalized roadmap..." />
+        )}
 
-      {/* Enhanced Code Modal */}
-      <Modal
-        visible={codeModalVisible}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setCodeModalVisible(false)}
-      >
-        <View
-          style={[
-            styles.enhancedCodeModal,
-            { backgroundColor: theme.background },
-          ]}
+        {/* Enhanced Code Modal */}
+        <Modal
+          visible={codeModalVisible}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setCodeModalVisible(false)}
         >
-          <LinearGradient
-            colors={[theme.primary, theme.primary + "80"]}
-            style={styles.enhancedCodeModalHeader}
+          <View
+            style={[
+              styles.enhancedCodeModal,
+              { backgroundColor: theme.background },
+            ]}
           >
-            <SafeAreaView style={styles.modalHeaderSafeArea}>
-              <View style={styles.enhancedCodeModalHeaderContent}>
-                <Text
-                  style={[styles.enhancedCodeModalTitle, { color: theme.text }]}
-                >
-                  📄 Code Example
-                </Text>
-                <View style={styles.enhancedCodeModalActions}>
-                  <TouchableOpacity
-                    onPress={() => copyCode(selectedCode)}
-                    style={[
-                      styles.enhancedCodeModalButton,
-                      { backgroundColor: theme.primary },
-                    ]}
-                  >
-                    <Ionicons name="copy-outline" size={16} color="#fff" />
-                    <Text style={styles.enhancedCodeModalButtonText}>Copy</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setCodeModalVisible(false)}
-                    style={[
-                      styles.enhancedCodeModalButton,
-                      { backgroundColor: theme.textSecondary },
-                    ]}
-                  >
-                    <Ionicons name="close" size={16} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </SafeAreaView>
-          </LinearGradient>
-
-          <ScrollView style={styles.enhancedCodeModalContent}>
-            <View
-              style={[
-                styles.enhancedCodeBlock,
-                { backgroundColor: theme.surface },
-              ]}
+            <LinearGradient
+              colors={[theme.primary, theme.primary + "80"]}
+              style={styles.enhancedCodeModalHeader}
             >
-              <Text
-                style={[styles.enhancedCodeBlockText, { color: theme.text }]}
-              >
-                {selectedCode}
-              </Text>
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
+              <SafeAreaView style={styles.modalHeaderSafeArea}>
+                <View style={styles.enhancedCodeModalHeaderContent}>
+                  <Text
+                    style={[
+                      styles.enhancedCodeModalTitle,
+                      { color: theme.text },
+                    ]}
+                  >
+                    📄 Code Example
+                  </Text>
+                  <View style={styles.enhancedCodeModalActions}>
+                    <TouchableOpacity
+                      onPress={() => copyCode(selectedCode)}
+                      style={[
+                        styles.enhancedCodeModalButton,
+                        { backgroundColor: theme.primary },
+                      ]}
+                    >
+                      <Ionicons name="copy-outline" size={16} color="#fff" />
+                      <Text style={styles.enhancedCodeModalButtonText}>
+                        Copy
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setCodeModalVisible(false)}
+                      style={[
+                        styles.enhancedCodeModalButton,
+                        { backgroundColor: theme.textSecondary },
+                      ]}
+                    >
+                      <Ionicons name="close" size={16} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </SafeAreaView>
+            </LinearGradient>
 
-      {/* Enhanced Toast Message */}
-      {toastMessage && (
-        <Animated.View
-          style={[styles.enhancedToastContainer, { opacity: fadeAnim }]}
-        >
-          <LinearGradient
-            colors={
-              toastMessage.type === "success"
-                ? [theme.success, theme.success + "E0"]
-                : [theme.error, theme.error + "E0"]
-            }
-            style={styles.enhancedToast}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <Text style={styles.enhancedToastText}>
-              {toastMessage.text || toastMessage}
-            </Text>
-          </LinearGradient>
-        </Animated.View>
-      )}
+            <ScrollView style={styles.enhancedCodeModalContent}>
+              <View
+                style={[
+                  styles.enhancedCodeBlock,
+                  { backgroundColor: theme.surface },
+                ]}
+              >
+                <Text
+                  style={[styles.enhancedCodeBlockText, { color: theme.text }]}
+                >
+                  {selectedCode}
+                </Text>
+              </View>
+            </ScrollView>
+          </View>
+        </Modal>
+
+        {/* Enhanced Toast Message */}
+        {toastMessage && (
+          <View style={styles.enhancedToastContainer}>
+            <LinearGradient
+              colors={
+                toastMessage.type === "success"
+                  ? [theme.success, theme.success + "E0"]
+                  : [theme.error, theme.error + "E0"]
+              }
+              style={styles.enhancedToast}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={styles.enhancedToastText}>
+                {toastMessage.text || toastMessage}
+              </Text>
+            </LinearGradient>
+          </View>
+        )}
+      </View>
     </SafeAreaView>
   );
 };
@@ -1058,8 +1011,9 @@ const styles = StyleSheet.create({
   // Header Styles (matching LearningScreen)
   header: {
     paddingHorizontal: 20,
-    paddingTop: 40,
+    paddingTop: Platform.OS === "ios" ? 20 : 20,
     paddingBottom: 20,
+    backgroundColor: "transparent",
   },
   headerTop: {
     flexDirection: "row",
