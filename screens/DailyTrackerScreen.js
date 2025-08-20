@@ -778,5 +778,4 @@ const DailyTrackerScreen = ({ navigation }) => {
     </SafeAreaView>
   );
 };
-
 export default DailyTrackerScreen;
