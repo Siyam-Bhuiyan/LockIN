@@ -45,13 +45,12 @@ const HomeScreen = ({ navigation }) => {
     hard: { solved: 0, total: 13 },
     lastSolved: null,
   });
-  const [dailyChallenge] = useState({
-    title: "Valid Parentheses",
-    difficulty: "Easy",
-    description: "Check if brackets are properly balanced",
-    estimatedTime: "15 min",
-    points: 50,
-    category: "Stack",
+  const [dailyTracker] = useState({
+    todayTasks: 5,
+    completedTasks: 3,
+    totalHours: 8.5,
+    completedHours: 6.0,
+    streak: 7,
   });
 
   useEffect(() => {
@@ -290,28 +289,25 @@ const HomeScreen = ({ navigation }) => {
     );
   };
 
-  const DailyChallengeCard = () => {
-    const getDifficultyColor = (difficulty) => {
-      switch (difficulty.toLowerCase()) {
-        case "easy":
-          return "#22C55E";
-        case "medium":
-          return "#F59E0B";
-        case "hard":
-          return "#EF4444";
-        default:
-          return theme.textSecondary;
-      }
-    };
+  const DailyTrackerCard = () => {
+    const progressPercentage =
+      dailyTracker.totalHours > 0
+        ? (dailyTracker.completedHours / dailyTracker.totalHours) * 100
+        : 0;
+
+    const taskProgress =
+      dailyTracker.todayTasks > 0
+        ? (dailyTracker.completedTasks / dailyTracker.todayTasks) * 100
+        : 0;
 
     return (
       <TouchableOpacity
         style={styles.dailyChallengeContainer}
-        onPress={() => navigation.navigate("DailyChallenge")}
+        onPress={() => navigation.navigate("DailyTracker")}
         activeOpacity={0.8}
       >
         <LinearGradient
-          colors={["#10B98115", "#10B98108"]}
+          colors={[theme.primary + "15", theme.primary + "08"]}
           style={styles.dailyChallengeCard}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -319,79 +315,103 @@ const HomeScreen = ({ navigation }) => {
           <View style={styles.dailyChallengeHeader}>
             <View style={styles.dailyChallengeTitleContainer}>
               <Text style={[styles.dailyChallengeTitle, { color: theme.text }]}>
-                Daily Challenge
+                Daily Tracker
               </Text>
               <View style={styles.dailyChallengeMeta}>
-                <View
-                  style={[
-                    styles.difficultyBadge,
-                    {
-                      backgroundColor:
-                        getDifficultyColor(dailyChallenge.difficulty) + "20",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.difficultyBadgeText,
-                      { color: getDifficultyColor(dailyChallenge.difficulty) },
-                    ]}
-                  >
-                    {dailyChallenge.difficulty}
+                <View style={styles.categoryContainer}>
+                  <Ionicons
+                    name="time-outline"
+                    size={16}
+                    color={theme.success}
+                  />
+                  <Text style={[styles.categoryText, { color: theme.success }]}>
+                    {dailyTracker.completedHours}h / {dailyTracker.totalHours}h
                   </Text>
                 </View>
-                <Text
-                  style={[
-                    styles.dailyChallengeTime,
-                    { color: theme.textSecondary },
-                  ]}
-                >
-                  {dailyChallenge.estimatedTime}
-                </Text>
               </View>
             </View>
             <View
               style={[
                 styles.pointsBadge,
-                { backgroundColor: theme.accent + "20" },
+                { backgroundColor: theme.success + "20" },
               ]}
             >
-              <Text style={[styles.pointsBadgeText, { color: theme.accent }]}>
-                +{dailyChallenge.points}
+              <Text style={[styles.pointsBadgeText, { color: theme.success }]}>
+                {dailyTracker.streak} day streak
               </Text>
             </View>
           </View>
 
-          <Text style={[styles.dailyChallengeProblem, { color: theme.text }]}>
-            {dailyChallenge.title}
-          </Text>
-          <Text
-            style={[
-              styles.dailyChallengeDescription,
-              { color: theme.textSecondary },
-            ]}
-          >
-            {dailyChallenge.description}
-          </Text>
+          <View style={styles.trackerStatsRow}>
+            <View style={styles.trackerStat}>
+              <Text style={[styles.trackerStatNumber, { color: theme.text }]}>
+                {dailyTracker.completedTasks}
+              </Text>
+              <Text
+                style={[
+                  styles.trackerStatLabel,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                Tasks Done
+              </Text>
+            </View>
+            <View style={styles.trackerStat}>
+              <Text style={[styles.trackerStatNumber, { color: theme.text }]}>
+                {dailyTracker.todayTasks}
+              </Text>
+              <Text
+                style={[
+                  styles.trackerStatLabel,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                Total Tasks
+              </Text>
+            </View>
+            <View style={styles.trackerStat}>
+              <Text style={[styles.trackerStatNumber, { color: theme.text }]}>
+                {progressPercentage.toFixed(0)}%
+              </Text>
+              <Text
+                style={[
+                  styles.trackerStatLabel,
+                  { color: theme.textSecondary },
+                ]}
+              >
+                Progress
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.progressContainer}>
+            <ProgressBar
+              progress={progressPercentage / 100}
+              height={8}
+              color={theme.primary}
+              animated={true}
+              style={styles.progressBarTracker}
+            />
+          </View>
 
           <View style={styles.dailyChallengeFooter}>
             <View style={styles.categoryContainer}>
               <Ionicons
-                name="pricetag-outline"
+                name="calendar-outline"
                 size={16}
                 color={theme.textTertiary}
               />
               <Text
                 style={[styles.categoryText, { color: theme.textTertiary }]}
               >
-                {dailyChallenge.category}
+                Today's Focus
               </Text>
             </View>
             <TouchableOpacity
-              style={[styles.solveButton, { backgroundColor: "#10B981" }]}
-              onPress={() => navigation.navigate("DailyChallenge")}
+              style={[styles.solveButton, { backgroundColor: theme.primary }]}
+              onPress={() => navigation.navigate("DailyTracker")}
             >
-              <Text style={styles.solveButtonText}>Solve Now</Text>
+              <Text style={styles.solveButtonText}>Track Now</Text>
             </TouchableOpacity>
           </View>
         </LinearGradient>
@@ -949,6 +969,32 @@ const HomeScreen = ({ navigation }) => {
       fontWeight: "700",
       color: "white",
     },
+    // Daily Tracker Specific Styles
+    trackerStatsRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginVertical: 16,
+    },
+    trackerStat: {
+      alignItems: "center",
+      flex: 1,
+    },
+    trackerStatNumber: {
+      fontSize: 20,
+      fontWeight: "800",
+      marginBottom: 4,
+      letterSpacing: -0.5,
+    },
+    trackerStatLabel: {
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    progressContainer: {
+      marginVertical: 12,
+    },
+    progressBarTracker: {
+      borderRadius: 4,
+    },
     // Cheat Sheet Styles - Compact Design
     cheatSheetContainer: {
       marginBottom: 4,
@@ -1157,9 +1203,9 @@ const HomeScreen = ({ navigation }) => {
             <NeetCodeTracker />
           </View>
 
-          {/* Daily Challenge */}
+          {/* Daily Tracker */}
           <View style={styles.section}>
-            <DailyChallengeCard />
+            <DailyTrackerCard />
           </View>
 
           {/* Cheat Sheets */}

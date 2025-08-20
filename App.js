@@ -9,6 +9,7 @@ import { StatusBar } from "expo-status-bar";
 import * as SplashScreenExpo from "expo-splash-screen";
 
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
+import { scheduleRecurringNotifications } from "./utils/notifications";
 import SplashScreen from "./screens/SplashScreen";
 import HomeScreen from "./screens/HomeScreen";
 import ProjectsScreen from "./screens/ProjectsScreen";
@@ -16,7 +17,7 @@ import LearningScreen from "./screens/LearningScreen";
 import RoadmapScreen from "./screens/RoadmapScreen";
 import CPTrackerScreen from "./screens/CPTrackerScreen";
 import NeetCodeScreen from "./screens/NeetCodeScreen";
-import DailyChallengeScreen from "./screens/DailyChallengeScreen";
+import DailyTrackerScreen from "./screens/DailyTrackerScreen";
 import CheatSheetsScreen from "./screens/CheatSheetsScreen";
 import ProblemDetailScreen from "./screens/ProblemDetailScreen";
 
@@ -122,10 +123,7 @@ function AppNavigator() {
         >
           <Stack.Screen name="MainTabs" component={TabNavigator} />
           <Stack.Screen name="NeetCode" component={NeetCodeScreen} />
-          <Stack.Screen
-            name="DailyChallenge"
-            component={DailyChallengeScreen}
-          />
+          <Stack.Screen name="DailyTracker" component={DailyTrackerScreen} />
           <Stack.Screen name="CheatSheets" component={CheatSheetsScreen} />
           <Stack.Screen name="ProblemDetail" component={ProblemDetailScreen} />
         </Stack.Navigator>
@@ -143,6 +141,19 @@ export default function App() {
       try {
         // Load fonts / storage / any init here
         await new Promise((resolve) => setTimeout(resolve, 300)); // demo delay
+
+        // Initialize notifications
+        console.log("🔔 Setting up notifications...");
+        const notificationsEnabled = await scheduleRecurringNotifications();
+        if (notificationsEnabled) {
+          console.log(
+            "✅ Notifications enabled! You'll receive motivational reminders every 3-4 hours."
+          );
+        } else {
+          console.log(
+            "❌ Notifications not enabled. Enable them in settings to stay motivated!"
+          );
+        }
       } catch (e) {
         console.warn(e);
       } finally {

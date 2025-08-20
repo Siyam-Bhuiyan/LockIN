@@ -11,6 +11,7 @@ import {
   Alert,
   TextInput,
   Modal,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,87 +21,210 @@ import StorageService from "../services/StorageService";
 
 const { width } = Dimensions.get("window");
 
-const DailyChallengeScreen = ({ navigation }) => {
+const DailyTrackerScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
-  const [currentChallenge, setCurrentChallenge] = useState(null);
-  const [userSolution, setUserSolution] = useState("");
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [showHints, setShowHints] = useState(false);
-  const [currentHintIndex, setCurrentHintIndex] = useState(0);
-  const [dailyProgress, setDailyProgress] = useState({
-    streak: 0,
-    totalSolved: 0,
-    pointsEarned: 0,
-    lastSolvedDate: null,
-    history: [],
-  });
-  const [showSolutionModal, setShowSolutionModal] = useState(false);
+  const [dailyTasks, setDailyTasks] = useState([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newTaskName, setNewTaskName] = useState("");
+  const [newTaskHours, setNewTaskHours] = useState("");
+  const [todayDate, setTodayDate] = useState("");
+  const [weekProgress, setWeekProgress] = useState([]);
+  const [totalHoursToday, setTotalHoursToday] = useState(0);
+  const [completedHoursToday, setCompletedHoursToday] = useState(0);
+  const [streak, setStreak] = useState(0);
 
-  // Sample daily challenges pool
-  const challengesPool = [
-    {
-      id: 1,
-      title: "Valid Parentheses",
-      difficulty: "Easy",
-      description:
-        "Given a string s containing just the characters '(', ')', '{', '}', '[' and ']', determine if the input string is valid.",
-      category: "Stack",
-      points: 50,
-      estimatedTime: "15 min",
-      examples: [
-        { input: `"()"`, output: "true" },
-        { input: `"()[]{}"`, output: "true" },
-        { input: `"(]"`, output: "false" },
-      ],
-      constraints: [
-        "1 <= s.length <= 10^4",
-        "s consists of parentheses only '()[]{}'.",
-      ],
-      hints: [
-        "Think about what makes parentheses valid - each opening bracket needs a corresponding closing bracket.",
-        "Consider using a stack data structure. What would you push and pop?",
-        "When you see an opening bracket, push it. When you see a closing bracket, check if it matches the most recent opening bracket.",
-        "The string is valid if the stack is empty at the end and no mismatches occurred.",
-      ],
-      solution: {
-        explanation:
-          "We use a stack to keep track of opening brackets. For each character, if it's an opening bracket, we push it to the stack. If it's a closing bracket, we check if it matches the most recent opening bracket (top of stack). If the stack is empty at the end, the string is valid.",
-        code: `function isValid(s) {
-    const stack = [];
-    const map = {
-        ')': '(',
-        '}': '{',
-        ']': '['
+  useEffect(() => {
+    loadDailyData();
+    setTodayDate(getTodayDate());
+    loadWeekProgress();
+  }, []);
+
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0]; // YYYY-MM-DD format
+  };
+
+  const getFormattedDate = (dateString) => {
+    const date = new Date(dateString);
+    const options = { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
     };
-    
-    for (let char of s) {
-        if (char in map) {
-            // Closing bracket
-            if (stack.length === 0 || stack.pop() !== map[char]) {
-                return false;
-            }
-        } else {
-            // Opening bracket
-            stack.push(char);
-        }
+    return date.toLocaleDateString('en-US', options);
+  };
+
+  const loadDailyData = async () => {
+    try {
+      const today = getTodayDate();
+      const savedData = await StorageService.getItem(`dailyTracker_${today}`);
+      
+      if (savedData) {
+        setDailyTasks(savedData.tasks || []);
+        calculateHours(savedData.tasks || []);
+      } else {
+        setDailyTasks([]);
+        setTotalHoursToday(0);
+        setCompletedHoursToday(0);
+      }
+
+      // Load streak
+      const streakData = await StorageService.getItem('dailyTrackerStreak');
+      setStreak(streakData?.streak || 0);
+    } catch (error) {
+      console.error('Error loading daily data:', error);
     }
+  };
+
+  const saveDailyData = async (tasks) => {
+    try {
+      const today = getTodayDate();
+      const dataToSave = {
+        date: today,
+        tasks: tasks,
+        savedAt: new Date().toISOString()
+      };
+      
+      await StorageService.setItem(`dailyTracker_${today}`, dataToSave);
+      calculateHours(tasks);
+      
+      // Update streak if all tasks completed
+      const allCompleted = tasks.length > 0 && tasks.every(task => task.completed);
+      if (allCompleted) {
+        await updateStreak();
+      }
+    } catch (error) {
+      console.error('Error saving daily data:', error);
+    }
+  };
+
+  const updateStreak = async () => {
+    try {
+      const streakData = await StorageService.getItem('dailyTrackerStreak');
+      const today = getTodayDate();
+      
+      if (streakData?.lastCompletedDate !== today) {
+        const newStreak = (streakData?.streak || 0) + 1;
+        await StorageService.setItem('dailyTrackerStreak', {
+          streak: newStreak,
+          lastCompletedDate: today
+        });
+        setStreak(newStreak);
+      }
+    } catch (error) {
+      console.error('Error updating streak:', error);
+    }
+  };
+
+  const loadWeekProgress = async () => {
+    try {
+      const weekData = [];
+      const today = new Date();
+      
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const dateString = date.toISOString().split('T')[0];
+        
+        const dayData = await StorageService.getItem(`dailyTracker_${dateString}`);
+        const tasks = dayData?.tasks || [];
+        const completedTasks = tasks.filter(task => task.completed).length;
+        const totalTasks = tasks.length;
+        
+        weekData.push({
+          date: dateString,
+          day: date.toLocaleDateString('en-US', { weekday: 'short' }),
+          completed: completedTasks,
+          total: totalTasks,
+          percentage: totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0
+        });
+      }
+      
+      setWeekProgress(weekData);
+    } catch (error) {
+      console.error('Error loading week progress:', error);
+    }
+  };
+
+  const calculateHours = (tasks) => {
+    const total = tasks.reduce((sum, task) => sum + parseFloat(task.hours || 0), 0);
+    const completed = tasks
+      .filter(task => task.completed)
+      .reduce((sum, task) => sum + parseFloat(task.hours || 0), 0);
     
-    return stack.length === 0;
-}`,
-        timeComplexity: "O(n) - we visit each character once",
-        spaceComplexity:
-          "O(n) - worst case, all characters are opening brackets",
-      },
-      leetcodeUrl: "https://leetcode.com/problems/valid-parentheses/",
-    },
-    {
-      id: 2,
-      title: "Two Sum",
-      difficulty: "Easy",
-      description:
-        "Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.",
-      category: "Array & Hashing",
+    setTotalHoursToday(total);
+    setCompletedHoursToday(completed);
+  };
+
+  const addNewTask = () => {
+    if (!newTaskName.trim() || !newTaskHours.trim()) {
+      Alert.alert('Error', 'Please enter both task name and hours');
+      return;
+    }
+
+    const hours = parseFloat(newTaskHours);
+    if (isNaN(hours) || hours <= 0) {
+      Alert.alert('Error', 'Please enter valid hours (greater than 0)');
+      return;
+    }
+
+    const newTask = {
+      id: Date.now().toString(),
+      name: newTaskName.trim(),
+      hours: hours,
+      completed: false,
+      createdAt: new Date().toISOString()
+    };
+
+    const updatedTasks = [...dailyTasks, newTask];
+    setDailyTasks(updatedTasks);
+    saveDailyData(updatedTasks);
+    
+    setNewTaskName('');
+    setNewTaskHours('');
+    setShowAddModal(false);
+  };
+
+  const toggleTaskCompletion = (taskId) => {
+    const updatedTasks = dailyTasks.map(task =>
+      task.id === taskId ? { ...task, completed: !task.completed } : task
+    );
+    setDailyTasks(updatedTasks);
+    saveDailyData(updatedTasks);
+  };
+
+  const deleteTask = (taskId) => {
+    Alert.alert(
+      'Delete Task',
+      'Are you sure you want to delete this task?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            const updatedTasks = dailyTasks.filter(task => task.id !== taskId);
+            setDailyTasks(updatedTasks);
+            saveDailyData(updatedTasks);
+          }
+        }
+      ]
+    );
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadDailyData();
+    await loadWeekProgress();
+    setRefreshing(false);
+  };
+
+  const getTotalProgress = () => {
+    if (totalHoursToday === 0) return 0;
+    return (completedHoursToday / totalHoursToday) * 100;
+  };
       points: 50,
       estimatedTime: "10 min",
       examples: [
