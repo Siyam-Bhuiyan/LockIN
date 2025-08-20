@@ -196,7 +196,7 @@ const HomeScreen = ({ navigation }) => {
         activeOpacity={0.8}
       >
         <LinearGradient
-          colors={[theme.primary + "15", theme.accent + "10"]}
+          colors={["#6366F115", "#6366F108"]}
           style={styles.neetCodeCard}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -216,14 +216,9 @@ const HomeScreen = ({ navigation }) => {
               </Text>
             </View>
             <View
-              style={[
-                styles.neetCodeBadge,
-                { backgroundColor: theme.primary + "20" },
-              ]}
+              style={[styles.neetCodeBadge, { backgroundColor: "#6366F120" }]}
             >
-              <Text
-                style={[styles.neetCodeBadgeText, { color: theme.primary }]}
-              >
+              <Text style={[styles.neetCodeBadgeText, { color: "#6366F1" }]}>
                 {progressPercentage}%
               </Text>
             </View>
@@ -232,7 +227,7 @@ const HomeScreen = ({ navigation }) => {
           <ProgressBar
             progress={overallProgress}
             height={8}
-            color={theme.primary}
+            color="#6366F1"
             animated={true}
             style={styles.neetCodeProgress}
           />
@@ -283,10 +278,7 @@ const HomeScreen = ({ navigation }) => {
               </View>
             </View>
             <TouchableOpacity
-              style={[
-                styles.continueButton,
-                { backgroundColor: theme.primary },
-              ]}
+              style={[styles.continueButton, { backgroundColor: "#6366F1" }]}
               onPress={() => navigation.navigate("NeetCode")}
             >
               <Text style={styles.continueButtonText}>Continue Solving</Text>
@@ -319,7 +311,7 @@ const HomeScreen = ({ navigation }) => {
         activeOpacity={0.8}
       >
         <LinearGradient
-          colors={[theme.success + "15", theme.success + "08"]}
+          colors={["#10B98115", "#10B98108"]}
           style={styles.dailyChallengeCard}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
@@ -396,7 +388,7 @@ const HomeScreen = ({ navigation }) => {
               </Text>
             </View>
             <TouchableOpacity
-              style={[styles.solveButton, { backgroundColor: theme.success }]}
+              style={[styles.solveButton, { backgroundColor: "#10B981" }]}
               onPress={() => navigation.navigate("DailyChallenge")}
             >
               <Text style={styles.solveButtonText}>Solve Now</Text>
@@ -417,7 +409,7 @@ const HomeScreen = ({ navigation }) => {
     const loadCheatSheets = async () => {
       try {
         const sheets = await StorageService.getCheatSheets();
-        setCheatSheets(sheets.slice(0, 4)); // Get first 4 cheat sheets
+        setCheatSheets(sheets.slice(0, 3)); // Get first 3 cheat sheets for compact design
       } catch (error) {
         console.error("Error loading cheat sheets:", error);
       }
@@ -460,16 +452,6 @@ const HomeScreen = ({ navigation }) => {
       return icons[category] || "code-outline";
     };
 
-    const getFirstCodeSnippet = (codes) => {
-      if (!codes || codes.length === 0) return "No code snippets";
-      const firstCode = codes[0].code;
-      // Get first line of code, max 30 chars
-      const firstLine = firstCode.split("\n")[0];
-      return firstLine.length > 30
-        ? firstLine.substring(0, 27) + "..."
-        : firstLine;
-    };
-
     return (
       <TouchableOpacity
         style={styles.cheatSheetContainer}
@@ -477,18 +459,15 @@ const HomeScreen = ({ navigation }) => {
         activeOpacity={0.8}
       >
         <LinearGradient
-          colors={[theme.secondary + "12", theme.secondary + "06"]}
-          style={[
-            styles.cheatSheetCard,
-            { borderColor: theme.secondary + "20" },
-          ]}
+          colors={["#8B5CF615", "#8B5CF608"]}
+          style={[styles.cheatSheetCard, { borderColor: "#8B5CF625" }]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
         >
           <View style={styles.cheatSheetHeader}>
             <View style={styles.cheatSheetTitleContainer}>
               <Text style={[styles.cheatSheetTitle, { color: theme.text }]}>
-                📚 Quick References
+                📚 Quick Reference
               </Text>
               <Text
                 style={[
@@ -496,101 +475,83 @@ const HomeScreen = ({ navigation }) => {
                   { color: theme.textSecondary },
                 ]}
               >
-                Code snippets & boilerplates
+                {cheatSheets.length > 0
+                  ? `${cheatSheets.length} code snippets ready`
+                  : "Code snippets & templates"}
               </Text>
             </View>
             <View
-              style={[
-                styles.cheatSheetBadge,
-                { backgroundColor: theme.secondary + "15" },
-              ]}
+              style={[styles.cheatSheetBadge, { backgroundColor: "#8B5CF620" }]}
             >
-              <Ionicons name="code-slash" size={18} color={theme.secondary} />
+              <Text style={[styles.cheatSheetBadgeText, { color: "#8B5CF6" }]}>
+                {cheatSheets.length || 0}
+              </Text>
             </View>
           </View>
 
           {cheatSheets.length > 0 ? (
-            <View style={styles.cheatSheetGrid}>
-              {cheatSheets.map((sheet, index) => {
+            <View style={styles.cheatSheetPreviewList}>
+              {cheatSheets.slice(0, 2).map((sheet, index) => {
                 const categoryColor =
                   categoryColors[sheet.category] || categoryColors["Other"];
                 return (
                   <View
                     key={sheet.id || index}
-                    style={styles.cheatSheetGridItem}
+                    style={styles.cheatSheetPreviewItem}
                   >
-                    <LinearGradient
-                      colors={[`${categoryColor}15`, `${categoryColor}08`]}
+                    <View
                       style={[
-                        styles.cheatSheetMiniCard,
-                        { borderColor: `${categoryColor}25` },
+                        styles.cheatSheetPreviewIcon,
+                        { backgroundColor: `${categoryColor}20` },
                       ]}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
                     >
-                      <View style={styles.cheatSheetMiniHeader}>
-                        <View
-                          style={[
-                            styles.cheatSheetMiniIcon,
-                            { backgroundColor: `${categoryColor}20` },
-                          ]}
-                        >
-                          <Ionicons
-                            name={getCategoryIcon(sheet.category)}
-                            size={12}
-                            color={categoryColor}
-                          />
-                        </View>
-                        <Text
-                          style={[
-                            styles.cheatSheetMiniTitle,
-                            { color: theme.text },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {sheet.title}
-                        </Text>
-                      </View>
+                      <Ionicons
+                        name={getCategoryIcon(sheet.category)}
+                        size={16}
+                        color={categoryColor}
+                      />
+                    </View>
+                    <View style={styles.cheatSheetPreviewContent}>
                       <Text
                         style={[
-                          styles.cheatSheetMiniPreview,
-                          { color: theme.textSecondary },
+                          styles.cheatSheetPreviewTitle,
+                          { color: theme.text },
                         ]}
                         numberOfLines={1}
                       >
-                        {getFirstCodeSnippet(sheet.codes)}
+                        {sheet.title}
                       </Text>
-                      <View style={styles.cheatSheetMiniFooter}>
-                        <Text
-                          style={[
-                            styles.cheatSheetMiniCategory,
-                            { color: categoryColor },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {sheet.category}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.cheatSheetMiniCount,
-                            { color: theme.textTertiary },
-                          ]}
-                        >
-                          {sheet.codes?.length || 0}
-                        </Text>
-                      </View>
-                    </LinearGradient>
+                      <Text
+                        style={[
+                          styles.cheatSheetPreviewCategory,
+                          { color: categoryColor },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {sheet.category} • {sheet.codes?.length || 0} snippets
+                      </Text>
+                    </View>
                   </View>
                 );
               })}
+              {cheatSheets.length > 2 && (
+                <Text
+                  style={[
+                    styles.cheatSheetMoreText,
+                    { color: theme.textTertiary },
+                  ]}
+                >
+                  +{cheatSheets.length - 2} more cheat sheets
+                </Text>
+              )}
             </View>
           ) : (
             <View style={styles.cheatSheetEmptyState}>
               <Ionicons
                 name="document-text-outline"
-                size={32}
-                color={theme.textSecondary}
-                style={{ marginBottom: 8 }}
+                size={24}
+                color={theme.textTertiary}
+                style={{ marginBottom: 6 }}
               />
               <Text
                 style={[
@@ -600,37 +561,29 @@ const HomeScreen = ({ navigation }) => {
               >
                 No cheat sheets yet
               </Text>
-              <Text
-                style={[
-                  styles.cheatSheetEmptySubtext,
-                  { color: theme.textTertiary },
-                ]}
-              >
-                Create your first code snippet
-              </Text>
             </View>
           )}
 
-          <TouchableOpacity
-            style={[
-              styles.cheatSheetViewAllButton,
-              { backgroundColor: theme.secondary + "15" },
-            ]}
-            onPress={() => navigation.navigate("CheatSheets")}
-          >
-            <Text
-              style={[styles.cheatSheetViewAllText, { color: theme.secondary }]}
+          <View style={styles.cheatSheetFooter}>
+            <TouchableOpacity
+              style={[
+                styles.cheatSheetViewAllButton,
+                { backgroundColor: "#8B5CF615" },
+              ]}
+              onPress={() => navigation.navigate("CheatSheets")}
             >
-              {cheatSheets.length > 0
-                ? "View All Cheat Sheets"
-                : "Create Cheat Sheet"}
-            </Text>
-            <Ionicons
-              name={cheatSheets.length > 0 ? "arrow-forward" : "add"}
-              size={16}
-              color={theme.secondary}
-            />
-          </TouchableOpacity>
+              <Text
+                style={[styles.cheatSheetViewAllText, { color: "#8B5CF6" }]}
+              >
+                {cheatSheets.length > 0 ? "View All" : "Create First"}
+              </Text>
+              <Ionicons
+                name={cheatSheets.length > 0 ? "arrow-forward" : "add"}
+                size={16}
+                color="#8B5CF6"
+              />
+            </TouchableOpacity>
+          </View>
         </LinearGradient>
       </TouchableOpacity>
     );
@@ -826,7 +779,7 @@ const HomeScreen = ({ navigation }) => {
       padding: 24,
       borderRadius: 20,
       borderWidth: 1,
-      borderColor: theme.primary + "20",
+      borderColor: "#6366F120",
       backgroundColor: theme.surface,
       shadowColor: theme.text,
       shadowOffset: { width: 0, height: 4 },
@@ -911,7 +864,7 @@ const HomeScreen = ({ navigation }) => {
       padding: 20,
       borderRadius: 16,
       borderWidth: 1,
-      borderColor: theme.success + "20",
+      borderColor: "#10B98120",
       backgroundColor: theme.surface,
       shadowColor: theme.text,
       shadowOffset: { width: 0, height: 2 },
@@ -996,7 +949,7 @@ const HomeScreen = ({ navigation }) => {
       fontWeight: "700",
       color: "white",
     },
-    // Cheat Sheet Styles
+    // Cheat Sheet Styles - Compact Design
     cheatSheetContainer: {
       marginBottom: 4,
     },
@@ -1004,13 +957,13 @@ const HomeScreen = ({ navigation }) => {
       padding: 20,
       borderRadius: 16,
       borderWidth: 1,
-      borderColor: theme.secondary + "20",
       backgroundColor: theme.surface,
       shadowColor: theme.text,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.04,
       shadowRadius: 12,
       elevation: 3,
+      minHeight: 160, // Compact height similar to other cards
     },
     cheatSheetHeader: {
       flexDirection: "row",
@@ -1031,87 +984,70 @@ const HomeScreen = ({ navigation }) => {
       fontWeight: "500",
     },
     cheatSheetBadge: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 12,
+      marginLeft: 16,
+    },
+    cheatSheetBadgeText: {
+      fontSize: 14,
+      fontWeight: "700",
+    },
+    cheatSheetPreviewList: {
+      marginBottom: 16,
+    },
+    cheatSheetPreviewItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    cheatSheetPreviewIcon: {
       width: 32,
       height: 32,
       borderRadius: 16,
       alignItems: "center",
       justifyContent: "center",
+      marginRight: 12,
     },
-    cheatSheetGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 12,
-      marginBottom: 16,
+    cheatSheetPreviewContent: {
+      flex: 1,
     },
-    cheatSheetGridItem: {
-      width: (width - 88) / 2, // Account for padding and gap
-    },
-    cheatSheetMiniCard: {
-      padding: 12,
-      borderRadius: 12,
-      borderWidth: 1,
-      minHeight: 80,
-    },
-    cheatSheetMiniHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: 8,
-    },
-    cheatSheetMiniIcon: {
-      width: 24,
-      height: 24,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-      marginRight: 8,
-    },
-    cheatSheetMiniTitle: {
-      fontSize: 13,
+    cheatSheetPreviewTitle: {
+      fontSize: 14,
       fontWeight: "700",
-      flex: 1,
+      marginBottom: 2,
     },
-    cheatSheetMiniPreview: {
-      fontSize: 11,
+    cheatSheetPreviewCategory: {
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    cheatSheetMoreText: {
+      fontSize: 12,
       fontWeight: "500",
-      fontFamily: "monospace",
-      marginBottom: 4,
-    },
-    cheatSheetMiniCategory: {
-      fontSize: 10,
-      fontWeight: "600",
-      textTransform: "uppercase",
-      letterSpacing: 0.5,
-      flex: 1,
-    },
-    cheatSheetMiniFooter: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    cheatSheetMiniCount: {
-      fontSize: 10,
-      fontWeight: "600",
+      fontStyle: "italic",
+      textAlign: "center",
+      marginTop: 4,
     },
     cheatSheetEmptyState: {
       alignItems: "center",
-      paddingVertical: 20,
+      paddingVertical: 16,
       marginBottom: 16,
     },
     cheatSheetEmptyText: {
       fontSize: 14,
       fontWeight: "600",
+      marginBottom: 4,
     },
-    cheatSheetEmptySubtext: {
-      fontSize: 12,
-      fontWeight: "500",
-      marginTop: 2,
+    cheatSheetFooter: {
+      marginTop: "auto",
     },
     cheatSheetViewAllButton: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      paddingVertical: 12,
-      borderRadius: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: 12,
       gap: 6,
     },
     cheatSheetViewAllText: {
