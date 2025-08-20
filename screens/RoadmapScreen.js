@@ -47,6 +47,13 @@ const RoadmapScreen = () => {
   useEffect(() => {
     loadRoadmaps();
     startAnimations();
+
+    // Cleanup function
+    return () => {
+      if (window.notesTimer) {
+        clearTimeout(window.notesTimer);
+      }
+    };
   }, []);
 
   const startAnimations = () => {
@@ -160,22 +167,64 @@ const RoadmapScreen = () => {
   const updateNotes = async (stepIndex, notes) => {
     if (!currentRoadmap) return;
 
-    const updatedSteps = [...currentRoadmap.steps];
-    updatedSteps[stepIndex].notes = notes;
+    try {
+      const updatedSteps = [...currentRoadmap.steps];
+      // Ensure the step object exists and has all required properties
+      if (!updatedSteps[stepIndex]) {
+        console.warn(`Step at index ${stepIndex} does not exist`);
+        return;
+      }
 
-    const updatedRoadmap = {
-      ...currentRoadmap,
-      steps: updatedSteps,
-      lastUpdated: new Date().toISOString(),
-    };
+      updatedSteps[stepIndex] = {
+        ...updatedSteps[stepIndex],
+        notes: notes,
+      };
 
-    setCurrentRoadmap(updatedRoadmap);
+      const updatedRoadmap = {
+        ...currentRoadmap,
+        steps: updatedSteps,
+        lastUpdated: new Date().toISOString(),
+      };
 
-    const updatedRoadmaps = roadmaps.map((rm) =>
-      rm.id === currentRoadmap.id ? updatedRoadmap : rm
-    );
-    setRoadmaps(updatedRoadmaps);
-    await StorageService.saveRoadmaps(updatedRoadmaps);
+      setCurrentRoadmap(updatedRoadmap);
+
+      const updatedRoadmaps = roadmaps.map((rm) =>
+        rm.id === currentRoadmap.id ? updatedRoadmap : rm
+      );
+      setRoadmaps(updatedRoadmaps);
+      await StorageService.saveRoadmaps(updatedRoadmaps);
+    } catch (error) {
+      console.error("Error updating notes:", error);
+      showToast("❌ Failed to save notes", "error");
+    }
+  };
+
+  // Debounced version for real-time updates
+  const debouncedUpdateNotes = (stepIndex, notes) => {
+    // Update UI immediately
+    if (currentRoadmap) {
+      const updatedSteps = [...currentRoadmap.steps];
+      if (updatedSteps[stepIndex]) {
+        updatedSteps[stepIndex] = {
+          ...updatedSteps[stepIndex],
+          notes: notes,
+        };
+
+        const updatedRoadmap = {
+          ...currentRoadmap,
+          steps: updatedSteps,
+          lastUpdated: new Date().toISOString(),
+        };
+
+        setCurrentRoadmap(updatedRoadmap);
+      }
+    }
+
+    // Debounce the save operation
+    clearTimeout(window.notesTimer);
+    window.notesTimer = setTimeout(() => {
+      updateNotes(stepIndex, notes);
+    }, 1000); // Save after 1 second of no typing
   };
 
   const toggleExpanded = (stepIndex) => {
@@ -263,7 +312,13 @@ const RoadmapScreen = () => {
           <Ionicons name="search" size={18} color={theme.textSecondary} />
           <TextInput
             ref={searchRef}
-            style={[styles.searchInput, { color: theme.text }]}
+            style={[
+              styles.searchInput,
+              {
+                color: theme.text,
+                backgroundColor: "transparent",
+              },
+            ]}
             placeholder="What would you like to learn today?"
             placeholderTextColor={theme.textSecondary}
             value={searchQuery}
@@ -433,16 +488,14 @@ const RoadmapScreen = () => {
           <View
             style={[
               styles.enhancedStatItem,
-              { backgroundColor: theme.primary + "30" },
+              { backgroundColor: theme.primary },
             ]}
           >
-            <Ionicons name="list" size={16} color={theme.primary} />
-            <Text style={[styles.enhancedStatText, { color: theme.text }]}>
+            <Ionicons name="list" size={16} color="#ffffff" />
+            <Text style={[styles.enhancedStatText, { color: "#ffffff" }]}>
               {roadmap.steps?.length || 0}
             </Text>
-            <Text
-              style={[styles.enhancedStatLabel, { color: theme.textSecondary }]}
-            >
+            <Text style={[styles.enhancedStatLabel, { color: "#ffffff" }]}>
               Steps
             </Text>
           </View>
@@ -450,33 +503,26 @@ const RoadmapScreen = () => {
           <View
             style={[
               styles.enhancedStatItem,
-              { backgroundColor: theme.success + "30" },
+              { backgroundColor: theme.success },
             ]}
           >
-            <Ionicons name="checkmark-circle" size={16} color={theme.success} />
-            <Text style={[styles.enhancedStatText, { color: theme.text }]}>
+            <Ionicons name="checkmark-circle" size={16} color="#ffffff" />
+            <Text style={[styles.enhancedStatText, { color: "#ffffff" }]}>
               {roadmap.steps?.filter((s) => s.done).length || 0}
             </Text>
-            <Text
-              style={[styles.enhancedStatLabel, { color: theme.textSecondary }]}
-            >
+            <Text style={[styles.enhancedStatLabel, { color: "#ffffff" }]}>
               Done
             </Text>
           </View>
 
           <View
-            style={[
-              styles.enhancedStatItem,
-              { backgroundColor: theme.accent + "30" },
-            ]}
+            style={[styles.enhancedStatItem, { backgroundColor: theme.accent }]}
           >
-            <Ionicons name="time" size={16} color={theme.accent} />
-            <Text style={[styles.enhancedStatText, { color: theme.text }]}>
+            <Ionicons name="time" size={16} color="#ffffff" />
+            <Text style={[styles.enhancedStatText, { color: "#ffffff" }]}>
               {roadmap.steps?.filter((s) => !s.done).length || 0}
             </Text>
-            <Text
-              style={[styles.enhancedStatLabel, { color: theme.textSecondary }]}
-            >
+            <Text style={[styles.enhancedStatLabel, { color: "#ffffff" }]}>
               Left
             </Text>
           </View>
@@ -501,7 +547,7 @@ const RoadmapScreen = () => {
             ]}
           >
             <LinearGradient
-              colors={[theme.primary + "40", theme.secondary + "40"]}
+              colors={[theme.primary, theme.secondary]}
               style={styles.emptyIconContainer}
             >
               <Ionicons name="map-outline" size={48} color={theme.primary} />
@@ -779,7 +825,7 @@ const RoadmapScreen = () => {
                 placeholder="Add your thoughts, insights, or questions here..."
                 placeholderTextColor={theme.textSecondary}
                 value={step.notes || ""}
-                onChangeText={(text) => updateNotes(index, text)}
+                onChangeText={(text) => debouncedUpdateNotes(index, text)}
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"
@@ -800,7 +846,7 @@ const RoadmapScreen = () => {
       <View style={styles.enhancedCurrentRoadmapContainer}>
         {/* Enhanced Header */}
         <LinearGradient
-          colors={[theme.primary + "30", theme.background]}
+          colors={[theme.primary, theme.primary + "80"]}
           style={styles.enhancedRoadmapHeader}
         >
           <SafeAreaView style={styles.headerSafeArea}>
@@ -926,7 +972,7 @@ const RoadmapScreen = () => {
           ]}
         >
           <LinearGradient
-            colors={[theme.primary + "30", theme.background]}
+            colors={[theme.primary, theme.primary + "80"]}
             style={styles.enhancedCodeModalHeader}
           >
             <SafeAreaView style={styles.modalHeaderSafeArea}>
@@ -1012,7 +1058,7 @@ const styles = StyleSheet.create({
   // Header Styles (matching LearningScreen)
   header: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 40,
     paddingBottom: 20,
   },
   headerTop: {
@@ -1039,14 +1085,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: 2,
     height: 50,
   },
   searchInput: {
     flex: 1,
     marginLeft: 12,
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: "600",
+    minHeight: 20,
   },
   clearButton: {
     padding: 4,
@@ -1238,7 +1285,7 @@ const styles = StyleSheet.create({
   },
   headerSafeArea: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 40,
   },
   enhancedHeaderContent: {
     flexDirection: "row",
@@ -1461,12 +1508,13 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   enhancedNotesInput: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: 12,
     padding: 16,
     fontSize: 15,
     lineHeight: 22,
-    minHeight: 100,
+    minHeight: 120,
+    maxHeight: 200,
   },
 
   // Enhanced Code Modal
