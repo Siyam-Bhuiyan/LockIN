@@ -34,6 +34,7 @@ const ProjectsScreen = () => {
   const [filterType, setFilterType] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
   const [isLoading, setIsLoading] = useState(true);
+  const [sortModalVisible, setSortModalVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Memoized filtered and sorted projects
@@ -308,7 +309,7 @@ const ProjectsScreen = () => {
     [filterType, theme]
   );
 
-  const renderSortOption = useCallback(() => {
+  const renderSortButton = useCallback(() => {
     const sortOptions = [
       { label: "Recent", value: "recent", icon: "time" },
       { label: "A-Z", value: "alphabetical", icon: "text" },
@@ -316,47 +317,162 @@ const ProjectsScreen = () => {
       { label: "Progress", value: "progress", icon: "stats-chart" },
     ];
 
+    const currentSort = sortOptions.find((option) => option.value === sortBy);
+
     return (
-      <View style={styles.sortContainer}>
-        {sortOptions.map((option) => (
-          <TouchableOpacity
-            key={option.value}
-            style={[
-              styles.sortOption,
-              {
-                backgroundColor:
-                  sortBy === option.value
-                    ? `${theme.primary}20`
-                    : "transparent",
-              },
-            ]}
-            onPress={() => setSortBy(option.value)}
-          >
-            <Ionicons
-              name={option.icon}
-              size={16}
-              color={
-                sortBy === option.value ? theme.primary : theme.textSecondary
-              }
-            />
-            <Text
-              style={[
-                styles.sortText,
-                {
-                  color:
-                    sortBy === option.value
-                      ? theme.primary
-                      : theme.textSecondary,
-                },
-              ]}
-            >
-              {option.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      <TouchableOpacity
+        style={[
+          styles.sortButton,
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+          },
+        ]}
+        onPress={() => setSortModalVisible(true)}
+      >
+        <Ionicons
+          name={currentSort?.icon || "swap-vertical"}
+          size={16}
+          color={theme.textSecondary}
+        />
+        <Text style={[styles.sortButtonText, { color: theme.text }]}>
+          Sort: {currentSort?.label || "Recent"}
+        </Text>
+        <Ionicons name="chevron-down" size={16} color={theme.textSecondary} />
+      </TouchableOpacity>
     );
   }, [sortBy, theme]);
+
+  const renderSortModal = useCallback(() => {
+    const sortOptions = [
+      {
+        label: "Recent",
+        value: "recent",
+        icon: "time",
+        description: "Last updated",
+      },
+      {
+        label: "A-Z",
+        value: "alphabetical",
+        icon: "text",
+        description: "Alphabetical order",
+      },
+      {
+        label: "Priority",
+        value: "priority",
+        icon: "flag",
+        description: "High to low priority",
+      },
+      {
+        label: "Progress",
+        value: "progress",
+        icon: "stats-chart",
+        description: "Completion percentage",
+      },
+    ];
+
+    return (
+      <Modal
+        visible={sortModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSortModalVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setSortModalVisible(false)}
+        >
+          <View
+            style={[
+              styles.sortModalContainer,
+              { backgroundColor: theme.surface },
+            ]}
+          >
+            <View style={styles.sortModalHeader}>
+              <Text style={[styles.sortModalTitle, { color: theme.text }]}>
+                Sort Projects
+              </Text>
+              <TouchableOpacity
+                onPress={() => setSortModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <Ionicons name="close" size={24} color={theme.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {sortOptions.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.sortModalOption,
+                  {
+                    backgroundColor:
+                      sortBy === option.value
+                        ? theme.primary + "15"
+                        : "transparent",
+                  },
+                ]}
+                onPress={() => {
+                  setSortBy(option.value);
+                  setSortModalVisible(false);
+                }}
+              >
+                <View style={styles.sortOptionLeft}>
+                  <View
+                    style={[
+                      styles.sortOptionIcon,
+                      {
+                        backgroundColor:
+                          sortBy === option.value
+                            ? theme.primary
+                            : theme.surface,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={option.icon}
+                      size={20}
+                      color={
+                        sortBy === option.value ? "#fff" : theme.textSecondary
+                      }
+                    />
+                  </View>
+                  <View style={styles.sortOptionContent}>
+                    <Text
+                      style={[
+                        styles.sortOptionLabel,
+                        {
+                          color:
+                            sortBy === option.value
+                              ? theme.primary
+                              : theme.text,
+                          fontWeight: sortBy === option.value ? "600" : "500",
+                        },
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.sortOptionDescription,
+                        { color: theme.textSecondary },
+                      ]}
+                    >
+                      {option.description}
+                    </Text>
+                  </View>
+                </View>
+                {sortBy === option.value && (
+                  <Ionicons name="checkmark" size={20} color={theme.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    );
+  }, [sortModalVisible, sortBy, theme]);
 
   const renderProject = useCallback(
     ({ item }) => (
@@ -412,38 +528,6 @@ const ProjectsScreen = () => {
   const renderHeader = useCallback(
     () => (
       <View style={styles.headerContent}>
-
-        {/* Search Bar */}
-        {/* <View
-          style={[
-            styles.searchContainer,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.border,
-            },
-          ]}
-        >
-          <Ionicons name="search" size={20} color={theme.textSecondary} />
-          <TextInput
-            style={[styles.searchInput, { color: theme.text }]}
-            placeholder="Search projects, tags, or tech stack..."
-            placeholderTextColor={theme.textSecondary}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            clearButtonMode="while-editing"
-            returnKeyType="search"
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <Ionicons
-                name="close-circle"
-                size={20}
-                color={theme.textSecondary}
-              />
-            </TouchableOpacity>
-          )}
-        </View> */}
-
         {/* Filters */}
         <View style={styles.filtersContainer}>
           <View style={styles.filterButtons}>
@@ -452,12 +536,9 @@ const ProjectsScreen = () => {
             {renderFilterButton("Personal", "personal")}
           </View>
         </View>
-
-        {/* Sort Options */}
-        {renderSortOption()}
       </View>
     ),
-    [projects, theme, searchQuery, renderFilterButton, renderSortOption]
+    [renderFilterButton]
   );
 
   if (isLoading) {
@@ -661,24 +742,6 @@ const styles = StyleSheet.create({
   },
   filterButtonText: {
     fontSize: 14,
-    fontWeight: "600",
-  },
-  sortContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 16,
-  },
-  sortOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    gap: 6,
-  },
-  sortText: {
-    fontSize: 12,
     fontWeight: "600",
   },
   emptyState: {
