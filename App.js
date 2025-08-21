@@ -10,8 +10,9 @@ import * as SplashScreenExpo from "expo-splash-screen";
 
 import { ThemeProvider, useTheme } from "./context/ThemeContext";
 import { scheduleRecurringNotifications } from "./utils/notifications";
-import SplashScreen from "./screens/SplashScreen";
+import SplashScreen from "./screens/SplashScreenSimple";
 import HomeScreen from "./screens/HomeScreen";
+import ErrorBoundary from "./components/ErrorBoundary";
 import ProjectsScreen from "./screens/ProjectsScreen";
 import LearningScreen from "./screens/LearningScreen";
 import RoadmapScreen from "./screens/RoadmapScreen";
@@ -194,9 +195,11 @@ export default function App() {
   // Main app (also hides native splash if not already hidden)
   return (
     <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
-      <ThemeProvider>
-        <AppNavigator />
-      </ThemeProvider>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <AppNavigator />
+        </ThemeProvider>
+      </ErrorBoundary>
     </View>
   );
 }

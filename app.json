@@ -11,9 +11,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#6366f1"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true
     },
@@ -22,12 +20,16 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#6366f1"
       },
-      "permissions": [
-        "android.permission.SCHEDULE_EXACT_ALARM"
-      ]
+      "permissions": ["android.permission.SCHEDULE_EXACT_ALARM"],
+      "package": "com.siyambhuiyan.lockin"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b045992c-98c3-474a-b044-f8f93fed314e"
+      }
     }
   }
 }
